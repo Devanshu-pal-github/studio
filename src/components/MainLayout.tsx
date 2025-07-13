@@ -1,19 +1,44 @@
+
+'use client';
+
 import Link from 'next/link';
-import { Compass, Home, User, Rocket, PanelLeft } from 'lucide-react';
+import { Compass, Home, User, Rocket, PanelLeft, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavLink } from './NavLink';
+import { useAuth } from '@/context/AuthContext';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      router.push('/landing');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   const navLinks = (
     <>
       <NavLink href="/">
         <Home />
         Dashboard
-      </NavLink>
-      <NavLink href="/onboarding">
-        <Rocket />
-        Onboarding
       </NavLink>
       <NavLink href="/profile">
         <User />
@@ -37,13 +62,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               {navLinks}
             </nav>
           </div>
-          <div className="mt-auto p-4">
-            <Link href="/login">
-              <Button size="sm" className="w-full">
-                Login
-              </Button>
-            </Link>
-          </div>
         </div>
       </div>
       <div className="flex flex-col">
@@ -64,17 +82,32 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   </Link>
                   {navLinks}
                 </nav>
-                <div className="mt-auto">
-                    <Link href="/login">
-                      <Button size="sm" className="w-full">
-                        Login
-                      </Button>
-                    </Link>
-                </div>
               </SheetContent>
             </Sheet>
-            <div className="w-full flex-1">
-            </div>
+            <div className="w-full flex-1" />
+            {user && (
+                 <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="icon" className="rounded-full">
+                            <Avatar>
+                                <AvatarImage src={user.photoURL || ''} alt="@shadcn" />
+                                <AvatarFallback>{user.email?.[0].toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <span className="sr-only">Toggle user menu</span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => router.push('/profile')}>Profile</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleSignOut}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Log out</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
           {children}

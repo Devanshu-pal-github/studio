@@ -1,49 +1,44 @@
-'use server';
+import { defineFlow, run } from '@genkit-ai/flow';
+import { gemini15Flash } from '@genkit-ai/googleai';
+import { z } from 'zod';
 
-/**
- * @fileOverview Implements the AI-powered onboarding flow to gather user interests and skill level.
- *
- * - aiPoweredOnboarding - A function that initiates the AI onboarding process.
- * - AiPoweredOnboardingInput - The input type for the aiPoweredOnboarding function (currently empty).
- * - AiPoweredOnboardingOutput - The return type for the aiPoweredOnboarding function, containing the chatbot's response.
- */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-
-const AiPoweredOnboardingInputSchema = z.object({
-  userMessage: z.string().describe('The user message to the chatbot.'),
-});
-export type AiPoweredOnboardingInput = z.infer<typeof AiPoweredOnboardingInputSchema>;
-
-const AiPoweredOnboardingOutputSchema = z.object({
-  chatbotResponse: z.string().describe('The chatbot response to the user message.'),
-});
-export type AiPoweredOnboardingOutput = z.infer<typeof AiPoweredOnboardingOutputSchema>;
-
-export async function aiPoweredOnboarding(input: AiPoweredOnboardingInput): Promise<AiPoweredOnboardingOutput> {
-  return aiPoweredOnboardingFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'aiPoweredOnboardingPrompt',
-  input: {schema: AiPoweredOnboardingInputSchema},
-  output: {schema: AiPoweredOnboardingOutputSchema},
-  prompt: `You are Compass, a friendly, encouraging, and expert AI mentor for the 'Project Compass' learning platform. Your tone is always supportive and encouraging.\n
-You are having a conversation with a new user to determine their interests and skill level so that the platform can recommend personalized projects.\n
-Previous conversation:\n
-{{userMessage}}\n
-What is your next question to the user?  Make sure your questions are open ended.\n`,
+const OnboardingHistorySchema = z.object({
+  history: z.array(z.object({
+    role: z.string(),
+    content: z.string(),
+  })),
 });
 
-const aiPoweredOnboardingFlow = ai.defineFlow(
+export const onboardingFlow = defineFlow(
   {
-    name: 'aiPoweredOnboardingFlow',
-    inputSchema: AiPoweredOnboardingInputSchema,
-    outputSchema: AiPoweredOnboardingOutputSchema,
+    name: 'onboardingFlow',
+    inputSchema: OnboardingHistorySchema,
+    outputSchema: z.string(),
   },
-  async input => {
-    const {output} = await prompt(input);
-    return {chatbotResponse: output!.chatbotResponse!};
+  async ({ history }) => {
+    const systemPrompt = `You are an expert career and learning mentor for a platform called Project Compass. Your goal is to understand the user's skills, goals, and learning style to create a personalized project roadmap for them.
+    
+    Your tone should be friendly, encouraging, and insightful.
+    
+    RULES:
+    - Ask only ONE question at a time.
+    - Start with a broad question, then get more specific based on their answers.
+    - Keep your questions concise.
+    - Your goal is to understand their current skills, what they want to learn, their career ambitions, and how they like to learn (e.g., videos, projects, docs).
+    - After 4-5 questions, if you feel you have enough information to build a profile, end your response with the exact token "[DONE]". Do not say anything after the token.`;
+
+    const historyString = history.map(m => `${m.role}: ${m.content}`).join('\n'); // Fixed join syntax
+    const fullPrompt = `${systemPrompt}\n\nConversation History:\n${historyString}\n\nmodel:`;
+
+    const llmResponse = await run("generate-question", () =>
+      gemini15Flash.generate({
+        prompt: fullPrompt,
+        config: {
+          temperature: 0.8,
+        },
+      })
+    );
+
+    return llmResponse.text();
   }
 );

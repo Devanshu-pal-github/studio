@@ -1,113 +1,169 @@
-"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { CornerDownLeft, Loader2 } from 'lucide-react';
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { aiPoweredOnboarding } from '@/ai/flows/ai-powered-onboarding';
-import { useToast } from "@/hooks/use-toast"
+import { Send, User, Bot, Loader } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
 
 interface Message {
-  text: string;
-  isUser: boolean;
+  role: 'user' | 'model';
+  content: string;
 }
 
 export default function OnboardingClient() {
-  const [messages, setMessages] = useState<Message[]>([
-    { text: "Welcome to Project Compass! To get started, what area are you most excited about? (e.g., Web Development, App Development, AI/ML)", isUser: false }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const router = useRouter();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(scrollToBottom, [messages]);
+
+  // Start the conversation with a welcome message from the AI
   useEffect(() => {
-    if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [messages]);
+    setIsLoading(true);
+    fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history: [] }), // Start with empty history
+      })
+      .then(res => res.json())
+      .then(data => {
+        setMessages([{ role: 'model', content: data.message }]);
+        setIsLoading(false);
+      });
+  }, []);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = { text: input, isUser: true };
-    setMessages(prev => [...prev, userMessage]);
+    const newMessages: Message[] = [...messages, { role: 'user', content: input }];
+    setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      const conversationHistory = [...messages, userMessage].map(m => `${m.isUser ? 'User' : 'AI'}: ${m.text}`).join('\n');
-      
-      const response = await aiPoweredOnboarding({ userMessage: conversationHistory });
-      
-      if (response.chatbotResponse) {
-        const aiMessage: Message = { text: response.chatbotResponse, isUser: false };
-        setMessages(prev => [...prev, aiMessage]);
-      } else {
-        throw new Error("No response from AI");
-      }
-    } catch (error) {
-      console.error("Error with AI onboarding:", error);
-      toast({
-        variant: "destructive",
-        title: "Oh no! Something went wrong.",
-        description: "There was a problem communicating with our AI mentor. Please try again.",
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history: newMessages }),
       });
-      setMessages(prev => prev.slice(0, -1));
+      const data = await res.json();
+      
+      if (data.message.includes('[DONE]')) {
+        // Conversation is over
+        const finalMessage = data.message.replace('[DONE]', '').trim();
+        setMessages(prev => [...prev, { role: 'model', content: finalMessage }]);
+        await saveOnboardingData(newMessages);
+      } else {
+        setMessages(prev => [...prev, { role: 'model', content: data.message }]);
+      }
+
+    } catch (error) {
+      console.error("Failed to get response from onboarding API", error);
     } finally {
       setIsLoading(false);
     }
   };
+  
+  const saveOnboardingData = async (finalHistory: Message[]) => {
+    if (!user) return;
+    try {
+        await setDoc(doc(db, 'users', user.uid), {
+            onboardingHistory: finalHistory,
+            completedOnboarding: true,
+        }, { merge: true });
+        // Give a moment for the user to read the final message before redirecting
+        setTimeout(() => {
+            router.push('/');
+        }, 2000);
+    } catch (error) {
+        console.error("Error saving onboarding data: ", error);
+    }
+  };
 
   return (
-    <Card className="flex-1 flex flex-col">
-      <CardContent className="p-4 flex-1 overflow-y-auto" ref={scrollAreaRef}>
-        <div className="space-y-4">
-        { messages.map((message, index) => (
-            <div key={index} className={`flex items-start gap-3 ${message.isUser ? 'justify-end' : ''}`}>
-              {!message.isUser && (
-                <Avatar className="border">
-                  <AvatarImage src="https://placehold.co/40x40.png" alt="AI Mentor" data-ai-hint="compass logo" />
-                  <AvatarFallback>AI</AvatarFallback>
-                </Avatar>
-              )}
-              <div className={`rounded-lg p-3 max-w-xl ${message.isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                <p className="text-sm">{message.text}</p>
-              </div>
-            </div>
-          ))}
-          {isLoading && (
-             <div className="flex items-start gap-3">
-                <Avatar className="border">
-                  <AvatarImage src="https://placehold.co/40x40.png" alt="AI Mentor" data-ai-hint="compass logo" />
-                  <AvatarFallback>AI</AvatarFallback>
-                </Avatar>
-                <div className="rounded-lg p-3 max-w-md bg-muted flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-            </div>
-          )}
+    <div className="flex flex-col h-[calc(100vh-100px)] w-full max-w-3xl mx-auto my-8 bg-card border rounded-lg shadow-lg">
+        <div className="p-4 border-b text-center">
+            <h1 className="text-2xl font-bold">Your Personal Onboarding</h1>
+            <p className="text-muted-foreground">Let's get to know you better.</p>
         </div>
-      </CardContent>
-      <div className="p-4 border-t bg-card">
-        <form onSubmit={handleSendMessage} className="relative">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Tell me about your interests..."
-            className="pr-16"
-            disabled={isLoading}
-            autoFocus
-          />
-          <Button type="submit" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8" disabled={isLoading || !input.trim()}>
-            <CornerDownLeft className="w-4 h-4" />
-            <span className="sr-only">Send</span>
-          </Button>
-        </form>
-      </div>
-    </Card>
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <AnimatePresence>
+                {messages.map((msg, index) => (
+                    <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className={`flex items-start gap-4 ${msg.role === 'user' ? 'justify-end' : ''}`}
+                    >
+                         {msg.role === 'model' && (
+                            <Avatar className="w-10 h-10 border">
+                                <AvatarFallback><Bot /></AvatarFallback>
+                            </Avatar>
+                         )}
+                        <div className={`max-w-md p-4 rounded-2xl ${
+                            msg.role === 'user' 
+                                ? 'bg-primary text-primary-foreground rounded-br-none' 
+                                : 'bg-muted rounded-bl-none'
+                        }`}>
+                            <p>{msg.content}</p>
+                        </div>
+                        {msg.role === 'user' && (
+                            <Avatar className="w-10 h-10 border">
+                                <AvatarImage src={user?.photoURL || ''} />
+                                <AvatarFallback>{user?.email?.[0].toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                         )}
+                    </motion.div>
+                ))}
+            </AnimatePresence>
+            {isLoading && (
+                 <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-4"
+                >
+                    <Avatar className="w-10 h-10 border">
+                        <AvatarFallback><Bot /></AvatarFallback>
+                    </Avatar>
+                    <div className="max-w-md p-4 rounded-2xl bg-muted rounded-bl-none">
+                        <Loader className="animate-spin" />
+                    </div>
+                </motion.div>
+            )}
+            <div ref={messagesEndRef} />
+        </div>
+        <div className="p-4 border-t">
+            <form onSubmit={handleSendMessage} className="flex items-center gap-4">
+                <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type your response..."
+                    className="flex-1"
+                    disabled={isLoading}
+                />
+                <Button type="submit" disabled={isLoading}>
+                    <Send />
+                </Button>
+            </form>
+        </div>
+    </div>
   );
 }
+

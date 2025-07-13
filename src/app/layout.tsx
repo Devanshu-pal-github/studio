@@ -1,13 +1,9 @@
-import type {Metadata} from 'next';
+'use client'
 import './globals.css';
 import { cn } from '@/lib/utils';
-import MainLayout from '@/components/MainLayout';
 import { Toaster } from "@/components/ui/toaster";
-
-export const metadata: Metadata = {
-  title: 'Project Compass',
-  description: 'An AI-Powered Learning Mentor',
-};
+import AppLayout from '@/components/AppLayout';
+import { AuthProvider } from '@/context/AuthContext';
 
 export default function RootLayout({
   children,
@@ -22,10 +18,12 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Source+Code+Pro:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
       </head>
       <body className={cn("font-body antialiased")}>
-        <MainLayout>
-          {children}
-        </MainLayout>
-        <Toaster />
+        <AuthProvider>
+            <AppLayout>
+            {children}
+            </AppLayout>
+            <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );
