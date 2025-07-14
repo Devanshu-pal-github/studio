@@ -32,19 +32,31 @@ export default function OnboardingClient() {
 
   useEffect(scrollToBottom, [messages]);
 
-  // Start the conversation with a welcome message from the AI
+  // Start the conversation immediately when component loads
   useEffect(() => {
-    setIsLoading(true);
-    fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history: [] }), // Start with empty history
+    if (messages.length === 0) {
+      setIsLoading(true);
+      fetch('/api/onboarding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ history: [] }),
       })
       .then(res => res.json())
       .then(data => {
-        setMessages([{ role: 'model', content: data.message }]);
-        setIsLoading(false);
+          setMessages([{ role: 'model', content: data.message }]);
+      })
+      .catch(error => {
+          console.error("Failed to get initial onboarding message", error);
+          // Fallback welcome message
+          setMessages([{ 
+            role: 'model', 
+            content: "👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.\n\nTo create the perfect learning path for you, let's start simple: **What's your name, and what made you decide to start learning today?**" 
+          }]);
+      })
+      .finally(() => {
+          setIsLoading(false);
       });
+    }
   }, []);
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -89,7 +101,7 @@ export default function OnboardingClient() {
         }, { merge: true });
         // Give a moment for the user to read the final message before redirecting
         setTimeout(() => {
-            router.push('/');
+            router.push('/dashboard');
         }, 2000);
     } catch (error) {
         console.error("Error saving onboarding data: ", error);

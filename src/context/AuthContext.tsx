@@ -2,7 +2,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { usePathname, useRouter } from 'next/navigation';
@@ -10,12 +10,17 @@ import { usePathname, useRouter } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  logout: () => Promise<void>;
 }
 
 const PUBLIC_ROUTES = ['/landing', '/login'];
 const ONBOARDING_ROUTE = '/onboarding';
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  loading: true,
+  logout: async () => {}
+});
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -42,19 +47,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (user) {
-      // User is authenticated
+      // User is authenticated - ENFORCE tunnel vision onboarding for ALL users
       const userDocRef = doc(db, 'users', user.uid);
       getDoc(userDocRef).then(userDoc => {
-        const hasCompletedOnboarding = userDoc.exists() && userDoc.data()?.completedOnboarding;
+        const userData = userDoc.exists() ? userDoc.data() : null;
+        const hasCompletedOnboarding = userData?.completedOnboarding === true;
 
         if (hasCompletedOnboarding) {
+          // User has completed tunnel vision onboarding, can access dashboard
           if (PUBLIC_ROUTES.includes(pathname) || pathname === ONBOARDING_ROUTE) {
-            router.push('/');
+            router.push('/dashboard');
           }
         } else {
+          // User has NOT completed tunnel vision onboarding - MUST complete it first
           if (pathname !== ONBOARDING_ROUTE) {
             router.push(ONBOARDING_ROUTE);
           }
+        }
+      }).catch(error => {
+        console.error('Error checking user onboarding status:', error);
+        // If there's an error checking, force onboarding to be safe
+        if (pathname !== ONBOARDING_ROUTE) {
+          router.push(ONBOARDING_ROUTE);
         }
       });
     } else {
@@ -65,12 +79,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user, loading, pathname, router]);
 
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

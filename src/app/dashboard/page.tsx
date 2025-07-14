@@ -1,20 +1,18 @@
-
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import LandingClient from './landing/LandingClient';
+import DashboardClient from '@/components/DashboardClient';
 
-export default function HomePage() {
+export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user) {
-      // If user is authenticated, check if they've completed onboarding
-      // For now, redirect to onboarding (later we can check their profile)
-      router.push('/onboarding');
+    if (!loading && !user) {
+      // If not authenticated, redirect to landing page
+      router.push('/');
     }
   }, [user, loading, router]);
 
@@ -26,6 +24,10 @@ export default function HomePage() {
     );
   }
 
-  // If not authenticated, show landing page
-  return <LandingClient />;
+  if (!user) {
+    return null; // Will redirect
+  }
+
+  // If authenticated, show dashboard
+  return <DashboardClient />;
 }

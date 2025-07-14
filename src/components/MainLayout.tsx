@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -10,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import AdvancedRAGChatbot from '@/components/AdvancedRAGChatbot';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +112,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
           {children}
         </main>
+        
+        {/* AI Assistant Chatbot - Always Available */}
+        <AdvancedRAGChatbot />
       </div>
     </div>
   );

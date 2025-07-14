@@ -1,25 +1,49 @@
+'use client';
+
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2 } from "lucide-react";
 
-
-const userProfile = {
-    name: "Alex Doe",
-    email: "alex.doe@example.com",
-    avatar: "https://placehold.co/100x100.png",
-    profile: {
-        interest: "Web Development",
-        level: "Beginner",
-        known_tech: ["HTML", "CSS", "JavaScript"],
-    },
-    completedProjects: [
-        { id: "1", name: "Build a Simple Landing Page" },
-        { id: "2", name: "CSS Variables Practice" },
-    ]
-};
-
 export default function ProfilePage() {
+    const { user, loading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/');
+        }
+    }, [user, loading, router]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (!user) {
+        return null;
+    }
+
+    const userProfile = {
+        name: user.displayName || "User",
+        email: user.email || "",
+        avatar: user.photoURL || "",
+        profile: {
+            interest: "Web Development",
+            level: "Beginner",
+            known_tech: ["HTML", "CSS", "JavaScript"],
+        },
+        completedProjects: [
+            { id: "1", name: "Build a Simple Landing Page" },
+            { id: "2", name: "CSS Variables Practice" },
+        ]
+    };
     return (
         <div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8">

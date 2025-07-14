@@ -58,6 +58,8 @@ const projects: Project[] = [
     }
 ];
 
+export { projects };
+
 export async function getProjects(): Promise<Project[]> {
     // In a real app, this would fetch from Firestore.
     // For the MVP, we return mock data.

@@ -58,7 +58,7 @@ interface ProjectData {
   prerequisites: string[];
 }
 
-export default function ProjectDetailClient() {
+export default function ProjectDetailClientClean() {
   const params = useParams();
   const projectId = params.id as string;
   const [project, setProject] = useState<ProjectData | null>(null);
