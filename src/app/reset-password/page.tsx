@@ -1,29 +1,38 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Lock } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   const [formData, setFormData] = useState({
-    email: '',
     password: '',
+    confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+  const [token, setToken] = useState('');
+
   const router = useRouter();
-  const { login: authLogin } = useAuth();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tokenParam = searchParams.get('token');
+    if (!tokenParam) {
+      setError('Invalid or missing reset token');
+    } else {
+      setToken(tokenParam);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,26 +40,36 @@ export default function LoginPage() {
     setSuccess('');
 
     // Validation
-    if (!formData.email || !formData.password) {
+    if (!formData.password || !formData.confirmPassword) {
       setError('All fields are required');
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
-      setError('Please enter a valid email address');
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    if (!token) {
+      setError('Invalid reset token');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/signin', {
+      const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: formData.email,
+          token,
           password: formData.password,
         }),
       });
@@ -58,22 +77,16 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Signed in successfully! Redirecting...');
-        
-        // Store token and update auth context
-        localStorage.setItem('token', data.token);
-        authLogin(data.user, data.token);
-        
-        // Redirect to dashboard
+        setSuccess('Password reset successfully! Redirecting to login...');
         setTimeout(() => {
-          router.push('/dashboard');
-        }, 1500);
+          router.push('/login');
+        }, 2000);
       } else {
-        setError(data.error || 'Failed to sign in');
+        setError(data.error || 'Failed to reset password');
       }
     } catch (error) {
-      console.error('Signin error:', error);
-      setError('Failed to sign in. Please try again.');
+      console.error('Reset password error:', error);
+      setError('Failed to reset password. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -96,17 +109,9 @@ export default function LoginPage() {
       >
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
           <CardHeader className="space-y-1 pb-6">
-            <div className="flex items-center justify-between">
-              <Link href="/landing">
-                <Button variant="ghost" size="sm" className="p-0 h-auto">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-              </Link>
-            </div>
-            <CardTitle className="text-2xl font-bold text-center">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
             <CardDescription className="text-center">
-              Sign in to your StudoAI account
+              Enter your new password below
             </CardDescription>
           </CardHeader>
           
@@ -125,27 +130,8 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
                 <label htmlFor="password" className="text-sm font-medium">
-                  Password
+                  New Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -153,7 +139,7 @@ export default function LoginPage() {
                     id="password"
                     name="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
+                    placeholder="Enter new password"
                     value={formData.password}
                     onChange={handleInputChange}
                     className="pl-10 pr-10"
@@ -169,29 +155,46 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-blue-600 hover:text-blue-500"
-                >
-                  Forgot password?
-                </Link>
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="text-sm font-medium">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Confirm new password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading}
+                disabled={isLoading || !token}
               >
-                {isLoading ? 'Signing in...' : 'Sign in'}
+                {isLoading ? 'Resetting...' : 'Reset Password'}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Don't have an account?{' '}
-                <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
-                  Sign up
+                Remember your password?{' '}
+                <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                  Back to login
                 </Link>
               </p>
             </div>

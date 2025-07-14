@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 // Import different onboarding stages
 import WelcomeStage from './stages/WelcomeStage';
@@ -86,16 +84,30 @@ export default function TunnelVisionOnboarding() {
     if (!user) return;
 
     try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.completedOnboarding) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      const response = await fetch('/api/user/onboarding', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.completedOnboarding) {
           // User already completed onboarding, redirect to dashboard
           router.push('/');
           return;
         }
         // Continue with existing profile data
-        setUserProfile(userData);
+        if (data.profile) {
+          setUserProfile(data.profile);
+        }
       }
     } catch (error) {
       console.error('Error checking onboarding status:', error);
@@ -126,6 +138,13 @@ export default function TunnelVisionOnboarding() {
     setIsAnalyzing(true);
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No auth token found');
+        setIsAnalyzing(false);
+        return;
+      }
+
       const finalProfile: UserProfile = {
         ...userProfile as UserProfile,
         completedOnboarding: true,
@@ -133,13 +152,29 @@ export default function TunnelVisionOnboarding() {
         profileVersion: 1
       };
 
-      await setDoc(doc(db, 'users', user.uid), finalProfile, { merge: true });
-      
-      // Simulate AI analysis time
-      setTimeout(() => {
+      const response = await fetch('/api/user/onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          profile: finalProfile,
+          completedOnboarding: true,
+        }),
+      });
+
+      if (response.ok) {
+        // Simulate AI analysis time
+        setTimeout(() => {
+          setIsAnalyzing(false);
+          router.push('/');
+        }, 3000);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to complete onboarding:', errorData.error);
         setIsAnalyzing(false);
-        router.push('/');
-      }, 3000);
+      }
       
     } catch (error) {
       console.error('Error completing onboarding:', error);

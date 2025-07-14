@@ -1,6 +1,5 @@
 // lib/activityTracker.ts - User activity and progress tracking
-import { db } from './firebase';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { connectToDatabase } from './mongodb';
 
 export interface UserActivity {
   id: string;
@@ -36,48 +35,57 @@ export interface UserProgress {
 
 export class ActivityTracker {
   /**
-   * Log a user activity. Requires a Firebase User object.
+   * Log a user activity. Requires a MongoDB User object.
    */
-  async logActivity(user: { uid: string } | null, activity: Omit<UserActivity, 'id' | 'timestamp' | 'userId'>) {
-    if (!user || !user.uid) throw new Error('User must be authenticated to log activity.');
-    const activityId = `${user.uid}_${Date.now()}`;
+  async logActivity(user: { _id: string } | null, activity: Omit<UserActivity, 'id' | 'timestamp' | 'userId'>) {
+    if (!user || !user._id) throw new Error('User must be authenticated to log activity.');
+    const activityId = `${user._id}_${Date.now()}`;
     const activityData: UserActivity = {
       ...activity,
-      userId: user.uid,
+      userId: user._id,
       id: activityId,
       timestamp: new Date(),
     };
 
-    // Save activity to Firestore
-    await setDoc(doc(db, 'activities', activityId), activityData);
+    try {
+      // Save activity to MongoDB
+      const { db } = await connectToDatabase();
+      await db.collection('activities').insertOne(activityData);
 
-    // Update user progress
-    await this.updateUserProgress(user, activityData);
+      // Update user progress
+      await this.updateUserProgress(user, activityData);
 
-    return activityData;
+      return activityData;
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      throw error;
+    }
   }
 
   /**
-   * Update user progress. Requires a Firebase User object.
+   * Update user progress. Requires a MongoDB User object.
    */
-  async updateUserProgress(user: { uid: string } | null, activity: UserActivity) {
-    if (!user || !user.uid) throw new Error('User must be authenticated to update progress.');
-    const userId = user.uid;
-    const progressRef = doc(db, 'userProgress', userId);
-    const progressDoc = await getDoc(progressRef);
+  async updateUserProgress(user: { _id: string } | null, activity: UserActivity) {
+    if (!user || !user._id) throw new Error('User must be authenticated to update progress.');
+    
+    const { db } = await connectToDatabase();
+    const userId = user._id;
 
-    let currentProgress: Partial<UserProgress>;
-    if (progressDoc.exists()) {
-      currentProgress = progressDoc.data() as UserProgress;
-    } else {
-      currentProgress = {
-        userId,
-        totalPoints: 0,
-        level: 1,
-        streak: 0,
-        activeDays: 0,
-        completedProjects: [],
-        currentProjects: [],
+    try {
+      const existingProgress = await db.collection('userProgress').findOne({ userId });
+
+      let currentProgress: Partial<UserProgress>;
+      if (existingProgress) {
+        currentProgress = (existingProgress as unknown) as UserProgress;
+      } else {
+        currentProgress = {
+          userId,
+          totalPoints: 0,
+          level: 1,
+          streak: 0,
+          activeDays: 0,
+          completedProjects: [],
+          currentProjects: [],
         achievements: [],
         weeklyActivity: {},
         monthlyActivity: {},
@@ -151,8 +159,17 @@ export class ActivityTracker {
       );
     }
 
-    await setDoc(progressRef, updatedProgress, { merge: true });
+    await db.collection('userProgress').updateOne(
+      { userId },
+      { $set: updatedProgress },
+      { upsert: true }
+    );
+    
     return updatedProgress;
+    } catch (error) {
+      console.error('Error updating user progress:', error);
+      throw error;
+    }
   }
 
   private calculatePoints(activity: UserActivity): number {
@@ -182,23 +199,38 @@ export class ActivityTracker {
     return Math.floor(points);
   }
 
-  async getUserProgress(user: { uid: string } | null): Promise<UserProgress | null> {
-    if (!user || !user.uid) throw new Error('User must be authenticated to get progress.');
-    const progressDoc = await getDoc(doc(db, 'userProgress', user.uid));
-    return progressDoc.exists() ? progressDoc.data() as UserProgress : null;
+  async getUserProgress(user: { _id: string } | null): Promise<UserProgress | null> {
+    if (!user || !user._id) throw new Error('User must be authenticated to get progress.');
+    
+    const { db } = await connectToDatabase();
+    
+    try {
+      const progress = await db.collection('userProgress').findOne({ userId: user._id });
+      return (progress as unknown) as UserProgress || null;
+    } catch (error) {
+      console.error('Error getting user progress:', error);
+      return null;
+    }
   }
 
-  async getUserActivities(user: { uid: string } | null, limitCount: number = 50): Promise<UserActivity[]> {
-    if (!user || !user.uid) throw new Error('User must be authenticated to get activities.');
-    const activitiesQuery = query(
-      collection(db, 'activities'),
-      where('userId', '==', user.uid),
-      orderBy('timestamp', 'desc'),
-      limit(limitCount)
-    );
-
-    const activitiesSnapshot = await getDocs(activitiesQuery);
-    return activitiesSnapshot.docs.map(doc => doc.data() as UserActivity);
+  async getUserActivities(user: { _id: string } | null, limitCount: number = 50): Promise<UserActivity[]> {
+    if (!user || !user._id) throw new Error('User must be authenticated to get activities.');
+    
+    const { db } = await connectToDatabase();
+    
+    try {
+      const activities = await db
+        .collection('activities')
+        .find({ userId: user._id })
+        .sort({ timestamp: -1 })
+        .limit(limitCount)
+        .toArray();
+      
+      return (activities as unknown) as UserActivity[];
+    } catch (error) {
+      console.error('Error getting user activities:', error);
+      return [];
+    }
   }
 
   private getWeekKey(date: Date): string {

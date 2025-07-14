@@ -1,6 +1,5 @@
 // lib/aiRecommendationEngine.ts - Dynamic AI-powered recommendations
-import { db } from './firebase';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { connectToDatabase } from './mongodb';
 import { UserProgress, UserActivity } from './activityTracker';
 
 export interface ProjectRecommendation {
@@ -78,11 +77,7 @@ export class AIRecommendationEngine {
   }
 
   async generateProjectRecommendations(count: number = 5): Promise<ProjectRecommendation[]> {
-    if (!this.userProfile) {
-      throw new Error('User profile not loaded');
-    }
-
-    // Analyze user patterns and preferences
+    // Analyze user patterns and preferences (works with or without profile)
     const userContext = this.analyzeUserContext();
     
     // Get base project pool
@@ -361,7 +356,76 @@ export class AIRecommendationEngine {
         prerequisites: ['JavaScript', 'HTTP basics'],
         learningOutcomes: ['API Design', 'Security', 'Database Integration'],
       },
-      // Add more sample projects...
+      {
+        id: 'portfolio-website',
+        title: 'Interactive Portfolio Website',
+        description: 'Create a stunning personal portfolio with animations and responsive design',
+        difficulty: 'easy',
+        estimatedHours: 12,
+        skills: ['HTML', 'CSS', 'JavaScript', 'Design'],
+        technologies: ['HTML5', 'CSS3', 'JavaScript', 'GSAP'],
+        personalizedReason: '',
+        matchScore: 0,
+        prerequisites: ['Basic HTML/CSS'],
+        learningOutcomes: ['Responsive Design', 'Animations', 'Portfolio Building'],
+        githubRepo: 'https://github.com/example/portfolio',
+      },
+      {
+        id: 'expense-tracker',
+        title: 'Personal Expense Tracker',
+        description: 'Build a financial management app with charts and budgeting features',
+        difficulty: 'medium',
+        estimatedHours: 20,
+        skills: ['React', 'Data Visualization', 'LocalStorage'],
+        technologies: ['React', 'Chart.js', 'CSS'],
+        personalizedReason: '',
+        matchScore: 0,
+        prerequisites: ['JavaScript', 'React basics'],
+        learningOutcomes: ['Data Management', 'Charts & Graphs', 'User Interface Design'],
+        githubRepo: 'https://github.com/example/expense-tracker',
+      },
+      {
+        id: 'chat-app',
+        title: 'Real-time Chat Application',
+        description: 'Develop a messaging app with real-time communication and user presence',
+        difficulty: 'hard',
+        estimatedHours: 30,
+        skills: ['WebSockets', 'Real-time', 'Full-stack'],
+        technologies: ['Socket.io', 'React', 'Node.js', 'MongoDB'],
+        personalizedReason: '',
+        matchScore: 0,
+        prerequisites: ['React', 'Node.js', 'Database basics'],
+        learningOutcomes: ['Real-time Communication', 'WebSockets', 'System Architecture'],
+        githubRepo: 'https://github.com/example/chat-app',
+      },
+      {
+        id: 'weather-dashboard',
+        title: 'Weather Analytics Dashboard',
+        description: 'Create a comprehensive weather app with forecasts and historical data',
+        difficulty: 'easy',
+        estimatedHours: 10,
+        skills: ['API Integration', 'Data Display', 'JavaScript'],
+        technologies: ['JavaScript', 'Weather API', 'CSS Grid'],
+        personalizedReason: '',
+        matchScore: 0,
+        prerequisites: ['Basic JavaScript'],
+        learningOutcomes: ['API Integration', 'Async Programming', 'Data Presentation'],
+        githubRepo: 'https://github.com/example/weather-dashboard',
+      },
+      {
+        id: 'e-commerce-cart',
+        title: 'E-commerce Shopping Cart',
+        description: 'Build a complete shopping cart system with payment integration',
+        difficulty: 'hard',
+        estimatedHours: 35,
+        skills: ['E-commerce', 'Payment Processing', 'State Management'],
+        technologies: ['React', 'Stripe API', 'Redux', 'Node.js'],
+        personalizedReason: '',
+        matchScore: 0,
+        prerequisites: ['React', 'State Management'],
+        learningOutcomes: ['E-commerce Logic', 'Payment Integration', 'Complex State Management'],
+        githubRepo: 'https://github.com/example/ecommerce-cart',
+      }
     ];
   }
 }

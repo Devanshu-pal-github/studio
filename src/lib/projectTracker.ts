@@ -1,6 +1,5 @@
 // lib/projectTracker.ts - Project progress and feedback tracking
-import { db } from './firebase';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, orderBy, getDocs, arrayUnion } from 'firebase/firestore';
+import { connectToDatabase } from './mongodb';
 import { activityTracker } from './activityTracker';
 
 export interface ProjectProgress {
@@ -61,8 +60,10 @@ export interface UserFeedback {
   };
 }
 
-export class ProjectTracker {
-  async startProject(userId: string, projectId: string, estimatedHours: number): Promise<ProjectProgress> {
+export class ProjectTracker {  async startProject(user: { _id: string } | null, projectId: string, estimatedHours: number): Promise<ProjectProgress> {
+    if (!user || !user._id) throw new Error('User must be authenticated to start a project.');
+
+    const userId = user._id;
     const progressId = `${userId}_${projectId}`;
     
     const projectProgress: ProjectProgress = {
@@ -95,8 +96,7 @@ export class ProjectTracker {
     await setDoc(doc(db, 'projectProgress', progressId), projectProgress);
     
     // Log activity
-    await activityTracker.logActivity({
-      userId,
+    await activityTracker.logActivity(user, {
       type: 'project_start',
       description: `Started project: ${projectId}`,
       metadata: { projectId, estimatedHours }
@@ -147,8 +147,7 @@ export class ProjectTracker {
     });
 
     // Log milestone completion
-    await activityTracker.logActivity({
-      userId: progress.userId,
+    await activityTracker.logActivity({ _id: progress.userId }, {
       type: 'lesson_complete',
       description: `Completed milestone: ${milestoneId}`,
       metadata: { 
@@ -204,8 +203,7 @@ export class ProjectTracker {
     });
 
     // Log project completion
-    await activityTracker.logActivity({
-      userId: progress.userId,
+    await activityTracker.logActivity({ _id: progress.userId }, {
       type: 'project_complete',
       description: `Completed project: ${progress.projectId}`,
       metadata: { 
@@ -227,8 +225,7 @@ export class ProjectTracker {
     await setDoc(doc(db, 'userFeedback', feedbackId), feedbackData);
 
     // Log feedback activity
-    await activityTracker.logActivity({
-      userId: feedback.userId,
+    await activityTracker.logActivity({ _id: feedback.userId }, {
       type: 'feedback_given',
       description: `Provided ${feedback.type} feedback`,
       metadata: { 

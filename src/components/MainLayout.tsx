@@ -6,10 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavLink } from './NavLink';
 import { useAuth } from '@/context/AuthContext';
-import { auth } from '@/lib/firebase';
-import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import AdvancedRAGChatbot from '@/components/AdvancedRAGChatbot';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,16 +19,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
 
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      router.push('/landing');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  const handleSignOut = () => {
+    logout();
   };
 
   const navLinks = (
@@ -112,9 +104,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
           {children}
         </main>
-        
-        {/* AI Assistant Chatbot - Always Available */}
-        <AdvancedRAGChatbot />
       </div>
     </div>
   );

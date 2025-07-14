@@ -34,8 +34,7 @@ export const dashboardPersonalizationFlow = defineFlow(
   },
   async ({ onboardingHistory }) => {
     
-    const historyAsString = onboardingHistory.map(m => `${m.role}: ${m.content}`).join('
-');
+    const historyAsString = onboardingHistory.map(m => `${m.role}: ${m.content}`).join('\n');
 
     const systemPrompt = `You are a helpful AI assistant for a learning platform called Project Compass. Your task is to analyze a user's onboarding conversation and generate a personalized dashboard for them.
 

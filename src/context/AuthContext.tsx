@@ -2,24 +2,24 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import { usePathname, useRouter } from 'next/navigation';
+import { User } from '@/lib/client-auth';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  logout: () => Promise<void>;
+  login: (user: User, token: string) => void;
+  logout: () => void;
 }
 
-const PUBLIC_ROUTES = ['/landing', '/login'];
+const PUBLIC_ROUTES = ['/landing', '/login', '/signup', '/forgot-password', '/reset-password'];
 const ONBOARDING_ROUTE = '/onboarding';
 
 const AuthContext = createContext<AuthContextType>({ 
   user: null, 
   loading: true,
-  logout: async () => {}
+  login: () => {},
+  logout: () => {}
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -28,63 +28,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Effect 1: Handles setting up the Firebase auth listener ONCE.
+  // Load user from localStorage on app start
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Failed to parse stored user data:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
+    
+    setLoading(false);
   }, []);
 
-  // Effect 2: Handles all routing logic based on auth state and path.
+  // Handle routing based on auth state
   useEffect(() => {
-    // Don't run routing logic until auth state is determined
-    if (loading) {
-      return;
-    }
+    if (loading) return;
 
     if (user) {
-      // User is authenticated - ENFORCE tunnel vision onboarding for ALL users
-      const userDocRef = doc(db, 'users', user.uid);
-      getDoc(userDocRef).then(userDoc => {
-        const userData = userDoc.exists() ? userDoc.data() : null;
-        const hasCompletedOnboarding = userData?.completedOnboarding === true;
-
-        if (hasCompletedOnboarding) {
-          // User has completed tunnel vision onboarding, can access dashboard
-          if (PUBLIC_ROUTES.includes(pathname) || pathname === ONBOARDING_ROUTE) {
-            router.push('/dashboard');
-          }
-        } else {
-          // User has NOT completed tunnel vision onboarding - MUST complete it first
-          if (pathname !== ONBOARDING_ROUTE) {
-            router.push(ONBOARDING_ROUTE);
-          }
-        }
-      }).catch(error => {
-        console.error('Error checking user onboarding status:', error);
-        // If there's an error checking, force onboarding to be safe
-        if (pathname !== ONBOARDING_ROUTE) {
-          router.push(ONBOARDING_ROUTE);
-        }
-      });
+      // User is authenticated
+      if (!user.completedOnboarding && pathname !== ONBOARDING_ROUTE) {
+        // Force onboarding if not completed
+        router.push(ONBOARDING_ROUTE);
+      } else if (user.completedOnboarding && PUBLIC_ROUTES.includes(pathname)) {
+        // Redirect to dashboard if trying to access public routes when authenticated
+        router.push('/dashboard');
+      }
     } else {
       // User is not authenticated
-      if (!PUBLIC_ROUTES.includes(pathname)) {
-        router.push('/login');
+      if (!PUBLIC_ROUTES.includes(pathname) && pathname !== ONBOARDING_ROUTE) {
+        router.push('/landing');
       }
     }
   }, [user, loading, pathname, router]);
 
-  const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Error signing out:', error);
+  const login = (userData: User, token: string) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+    
+    if (!userData.completedOnboarding) {
+      router.push('/onboarding');
+    } else {
+      router.push('/dashboard');
     }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    router.push('/landing');
   };
 
   if (loading) {
@@ -92,10 +92,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

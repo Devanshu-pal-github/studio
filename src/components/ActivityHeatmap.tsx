@@ -7,7 +7,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Calendar, GitBranch, TrendingUp, Flame } from 'lucide-react';
-import { activityTracker, UserActivity } from '@/lib/activityTracker';
+// Define types locally to avoid importing server-side modules  
+interface UserActivity {
+  id: string;
+  userId: string;
+  type: 'project_start' | 'project_complete' | 'lesson_complete' | 'code_commit' | 'feedback_given' | 'resource_viewed' | 'challenge_attempted';
+  timestamp: Date;
+  description: string;
+  metadata: {
+    projectId?: string;
+    difficulty?: string;
+    duration?: number;
+    points?: number;
+    githubCommitSha?: string;
+    resourceUrl?: string;
+    [key: string]: any;
+  };
+}
 
 interface ContributionDay {
   date: string;
@@ -37,8 +53,28 @@ export default function ActivityHeatmap({ userId }: ActivityHeatmapProps) {
   const loadActivityData = async () => {
     setIsLoading(true);
     try {
-      // Get all user activities for the selected year
-      const activities = await activityTracker.getUserActivities(userId, 1000);
+      // Get all user activities for the selected year via API
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch('/api/user/activities?limit=1000', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch activities');
+      }
+
+      const data = await response.json();
+      const activities = data.activities.map((activity: any) => ({
+        ...activity,
+        timestamp: new Date(activity.timestamp),
+      }));
       
       // Generate contribution data for the past year
       const contributionMap = generateContributionData(activities, selectedYear);

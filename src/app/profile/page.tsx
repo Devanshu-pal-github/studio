@@ -4,43 +4,33 @@
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Loader2, Target, BookOpen, Clock, AlertCircle, Briefcase, Trophy } from "lucide-react";
-import { LearningContext } from '@/lib/vectorStore';
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, Loader2, Target, BookOpen, Clock, AlertCircle, Briefcase, Trophy, Settings } from "lucide-react";
 
 export default function ProfilePage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    const [learningContext, setLearningContext] = useState<LearningContext | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/');
+            router.push('/landing');
             return;
-        }
-
-        if (user) {
-            const fetchLearningContext = async () => {
-                setLoading(true);
-                const docRef = doc(db, 'users', user.uid);
-                const docSnap = await getDoc(docRef);
-
-                if (docSnap.exists() && docSnap.data().learningContext) {
-                    setLearningContext(docSnap.data().learningContext);
-                }
-                setLoading(false);
-            };
-
-            fetchLearningContext();
         }
     }, [user, authLoading, router]);
 
-    if (authLoading || loading) {
+    const handleStartOnboarding = () => {
+        router.push('/onboarding');
+    };
+
+    const handleGoToLanding = () => {
+        router.push('/landing');
+    };
+
+    if (authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin" />
@@ -57,6 +47,9 @@ export default function ProfilePage() {
         email: user.email || "",
         avatar: user.photoURL || "",
     };
+    if (!user) {
+        return null;
+    }
 
     const renderDetailCard = (title: string, value: any, icon: React.ReactNode) => (
         <Card>
@@ -80,23 +73,31 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto p-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8">
                 <Avatar className="h-24 w-24 border-2 border-primary">
-                    <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
-                    <AvatarFallback>{userProfile.name.charAt(0)}</AvatarFallback>
+                    <AvatarImage src={user.photoURL} alt={user.name} />
+                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div>
-                    <h1 className="text-4xl font-bold">{userProfile.name}</h1>
-                    <p className="text-muted-foreground">{userProfile.email}</p>
+                <div className="flex-1">
+                    <h1 className="text-4xl font-bold">{user.name}</h1>
+                    <p className="text-muted-foreground">{user.email}</p>
+                </div>
+                <div className="flex gap-2">
+                    <Button onClick={handleGoToLanding} variant="outline">
+                        Go to Landing
+                    </Button>
+                    <Button onClick={handleStartOnboarding} variant="default">
+                        <Settings className="h-4 w-4 mr-2" />
+                        {user.completedOnboarding ? 'Redo Onboarding' : 'Start Onboarding'}
+                    </Button>
                 </div>
             </div>
 
-            {learningContext ? (
+            {user.completedOnboarding ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {renderDetailCard("Your Goals", learningContext.goals, <Target className="h-4 w-4 text-muted-foreground" />)}
-                    {renderDetailCard("Experience Level", learningContext.experience, <BookOpen className="h-4 w-4 text-muted-foreground" />)}
-                    {renderDetailCard("Learning Style", learningContext.learningStyle, <Clock className="h-4 w-4 text-muted-foreground" />)}
-                    {renderDetailCard("Challenges", learningContext.preferences, <AlertCircle className="h-4 w-4 text-muted-foreground" />)}
-                    {renderDetailCard("Current Projects", learningContext.currentProjects, <Briefcase className="h-4 w-4 text-muted-foreground" />)}
-                    {renderDetailCard("Success Looks Like", learningContext.completedTasks, <Trophy className="h-4 w-4 text-muted-foreground" />)}
+                    {renderDetailCard("Your Goals", user.goals, <Target className="h-4 w-4 text-muted-foreground" />)}
+                    {renderDetailCard("Experience Level", user.experienceLevel, <BookOpen className="h-4 w-4 text-muted-foreground" />)}
+                    {renderDetailCard("Learning Style", user.learningStyle, <Clock className="h-4 w-4 text-muted-foreground" />)}
+                    {renderDetailCard("Interests", user.interests, <AlertCircle className="h-4 w-4 text-muted-foreground" />)}
+                    {renderDetailCard("Tech Stack", user.techStack, <Briefcase className="h-4 w-4 text-muted-foreground" />)}
                 </div>
             ) : (
                 <Card className="text-center p-8">
@@ -104,7 +105,11 @@ export default function ProfilePage() {
                         <CardTitle>Onboarding Not Completed</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p>You have not completed the onboarding process yet. Your personalized profile information will appear here once you do.</p>
+                        <p className="mb-4">You have not completed the onboarding process yet. Your personalized profile information will appear here once you do.</p>
+                        <Button onClick={handleStartOnboarding} size="lg">
+                            <Settings className="h-4 w-4 mr-2" />
+                            Start Onboarding Now
+                        </Button>
                     </CardContent>
                 </Card>
             )}

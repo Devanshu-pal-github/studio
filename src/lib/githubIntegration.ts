@@ -61,7 +61,9 @@ export class GitHubIntegration {
     }
   }
 
-  async trackRepositoryActivity(userId: string, repoOwner: string, repoName: string) {
+  async trackRepositoryActivity(user: { _id: string } | null, repoOwner: string, repoName: string) {
+    if (!user || !user._id) throw new Error('User must be authenticated to track repository activity.');
+    
     try {
       // Get recent commits
       const { data: commits } = await this.octokit.rest.repos.listCommits({
@@ -72,8 +74,7 @@ export class GitHubIntegration {
 
       // Log each commit as an activity
       for (const commit of commits) {
-        await activityTracker.logActivity({
-          userId,
+        await activityTracker.logActivity(user, {
           type: 'code_commit',
           description: `Committed: ${commit.commit.message}`,
           metadata: {

@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, User, Bot, Loader } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
@@ -97,30 +95,53 @@ To create the perfect learning path for you, let's start simple: **What's your n
   const saveOnboardingData = async (finalHistory: Message[]) => {
     if (!user) return;
     try {
-        // First, save the raw history to Firestore
-        await setDoc(doc(db, 'users', user.uid), {
-            onboardingHistory: finalHistory,
-            completedOnboarding: true,
-        }, { merge: true });
-
-        // Then, call the new endpoint to process and store in vector DB
-        await fetch('/api/onboarding/finalize', {
+        // Save onboarding completion status to user object
+        const completeOnboardingResponse = await fetch('/api/user/complete-onboarding', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
             },
             body: JSON.stringify({
-                userId: user.uid,
+                userId: user._id,
+                onboardingHistory: finalHistory,
+                completedOnboarding: true,
+            }),
+        });
+
+        if (!completeOnboardingResponse.ok) {
+            throw new Error('Failed to complete onboarding');
+        }
+
+        // Then, call the endpoint to process and store in vector DB
+        const finalizeResponse = await fetch('/api/onboarding/finalize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({
+                userId: user._id,
                 history: finalHistory,
             }),
         });
 
+        if (!finalizeResponse.ok) {
+            throw new Error('Failed to finalize onboarding');
+        }
+
+        // Update the user state in localStorage and context to reflect completion
+        const updatedUser = { ...user, completedOnboarding: true };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
         // Give a moment for the user to read the final message before redirecting
         setTimeout(() => {
-            router.push('/dashboard');
+            // Force a reload to ensure the auth context picks up the new state
+            window.location.href = '/dashboard';
         }, 2000);
     } catch (error) {
         console.error("Error in final onboarding step: ", error);
+        alert("There was an error completing your onboarding. Please try again.");
     }
   };
 

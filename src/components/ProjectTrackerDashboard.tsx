@@ -22,7 +22,41 @@ import {
   Lightbulb
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { projectTracker, ProjectProgress, UserFeedback } from '@/lib/projectTracker';
+
+// Remove direct import that contains MongoDB code - use API calls instead
+// import { projectTracker, ProjectProgress, UserFeedback } from '@/lib/projectTracker';
+
+// Define types locally to avoid MongoDB imports
+interface ProjectProgress {
+  projectId: string;
+  title: string;
+  description: string;
+  status: 'not_started' | 'in_progress' | 'paused' | 'completed';
+  progress: number;
+  estimatedHours: number;
+  actualHours: number;
+  startDate?: Date;
+  endDate?: Date;
+  completionDate?: Date;
+  feedback?: string;
+  challenges: string[];
+  learnings: string[];
+  technologies: string[];
+}
+
+interface UserFeedback {
+  projectId: string;
+  userId: string;
+  rating: number;
+  comment: string;
+  suggestions: string[];
+  wouldRecommend: boolean;
+  difficulty: 'easy' | 'medium' | 'hard';
+  timeSpent: number;
+  mostValuable: string;
+  improvements: string;
+  timestamp: Date;
+}
 
 interface ProjectTrackerDashboardProps {
   projects: ProjectProgress[];
@@ -43,14 +77,25 @@ export default function ProjectTrackerDashboard({ projects, onProjectUpdate }: P
   const handleProjectAction = async (projectId: string, action: 'pause' | 'resume' | 'complete') => {
     if (!user) return;
 
-    const project = projects.find(p => p.id === projectId);
+    const project = projects.find(p => p.projectId === projectId);
     if (!project) return;
 
     try {
       if (action === 'pause') {
-        await projectTracker.updateProgress(projectId, { status: 'paused' });
+        // Use API call instead of direct projectTracker
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'paused' })
+        });
+        if (!response.ok) throw new Error('Failed to pause project');
       } else if (action === 'resume') {
-        await projectTracker.updateProgress(projectId, { status: 'in_progress' });
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'in_progress' })
+        });
+        if (!response.ok) throw new Error('Failed to resume project');
       } else if (action === 'complete') {
         setSelectedProject(projectId);
         setShowFeedbackDialog(true);
@@ -67,18 +112,29 @@ export default function ProjectTrackerDashboard({ projects, onProjectUpdate }: P
     if (!user || !selectedProject) return;
 
     try {
-      // Complete the project
-      await projectTracker.completeProject(selectedProject, feedbackText);
-      
-      // Submit feedback
-      await projectTracker.submitFeedback({
-        userId: user.uid,
-        projectId: selectedProject,
-        type: 'completion_feedback',
-        rating: feedbackRating,
-        feedback: feedbackText,
-        context: {}
+      // Complete the project via API
+      const completeResponse = await fetch(`/api/projects/${selectedProject}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: feedbackText })
       });
+      if (!completeResponse.ok) throw new Error('Failed to complete project');
+      
+      // Submit feedback via API
+      const feedbackResponse = await fetch('/api/user/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'completion_feedback',
+          description: 'Project completion feedback',
+          metadata: {
+            projectId: selectedProject,
+            rating: feedbackRating,
+            feedback: feedbackText
+          }
+        })
+      });
+      if (!feedbackResponse.ok) throw new Error('Failed to submit feedback');
 
       setShowFeedbackDialog(false);
       setFeedbackText('');

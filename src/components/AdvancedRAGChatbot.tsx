@@ -22,7 +22,8 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { activityTracker } from '@/lib/activityTracker';
+// Remove direct MongoDB import - use API calls instead
+// import { activityTracker } from '@/lib/activityTracker';
 
 interface Message {
   id: string;
@@ -79,15 +80,25 @@ export default function AdvancedRAGChatbot() {
     if (!user) return;
 
     try {
-      // Load user's current context for personalized responses
-      const [userProgress, recentActivities] = await Promise.all([
-        activityTracker.getUserProgress(user.uid),
-        activityTracker.getUserActivities(user.uid, 10)
+      // Load user's current context for personalized responses via API
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const [progressResponse, activitiesResponse] = await Promise.all([
+        fetch('/api/user/progress', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch('/api/user/activities?limit=10', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        })
       ]);
 
+      const progressData = await progressResponse.json();
+      const activitiesData = await activitiesResponse.json();
+
       const context: UserContext = {
-        currentProjects: userProgress?.currentProjects || [],
-        recentActivities: recentActivities || [],
+        currentProjects: progressData.success ? progressData.progress?.currentProjects || [] : [],
+        recentActivities: activitiesData.success ? activitiesData.activities || [] : [],
         userProfile: {}, // Would be loaded from user profile
         learningGoals: ['Full-stack development', 'React mastery'], // From user profile
         skillLevel: 'intermediate',
@@ -142,13 +153,26 @@ How can I assist you today? I can help with:
     setInputValue('');
     setIsTyping(true);
 
-    // Log user interaction
-    await activityTracker.logActivity({
-      userId: user.uid,
-      type: 'resource_viewed',
-      description: `Asked AI assistant: ${inputValue.substring(0, 50)}...`,
-      metadata: { interactionType: 'chatbot', query: inputValue }
-    });
+    // Log user interaction via API
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/user/activities', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            type: 'resource_viewed',
+            description: `Asked AI assistant: ${inputValue.substring(0, 50)}...`,
+            metadata: { interactionType: 'chatbot', query: inputValue }
+          }),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to log activity:', error);
+    }
 
     // Simulate AI processing with context-aware response
     setTimeout(async () => {

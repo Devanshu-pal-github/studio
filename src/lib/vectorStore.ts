@@ -39,6 +39,12 @@ class VectorStore {
   // Generate embeddings using Gemini
   async generateEmbedding(text: string): Promise<number[]> {
     try {
+      const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY;
+      if (!apiKey) {
+        console.warn('Google AI API key not found. Using fallback embedding method.');
+        return this.simpleEmbedding(text);
+      }
+      
       const model = this.genAI.getGenerativeModel({ model: 'embedding-001' });
       const result = await model.embedContent(text);
       return result.embedding.values || [];

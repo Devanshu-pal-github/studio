@@ -26,11 +26,80 @@ import {
   CheckCircle2,
   PlayCircle,
   PauseCircle,
-  RefreshCw
+  RefreshCw,
+  Brain,
+  ArrowRight
 } from 'lucide-react';
-import { activityTracker, UserProgress, UserActivity } from '@/lib/activityTracker';
-import { aiRecommendationEngine, ProjectRecommendation, LearningPath } from '@/lib/aiRecommendationEngine';
-import { projectTracker, ProjectProgress } from '@/lib/projectTracker';
+// Remove direct imports that contain MongoDB code - use API calls instead
+// import { activityTracker, UserProgress, UserActivity } from '@/lib/activityTracker';
+// import { aiRecommendationEngine, ProjectRecommendation, LearningPath } from '@/lib/aiRecommendationEngine';
+// import { projectTracker, ProjectProgress } from '@/lib/projectTracker';
+
+// Define types locally for now
+interface UserProgress {
+  totalPoints: number;
+  level: number;
+  streak: number;
+  activeDays: number;
+  completedProjects: string[];
+  currentProjects: string[];
+  achievements: string[];
+  weeklyGoals: {
+    targetProjects: number;
+    targetPoints: number;
+    currentProjects: number;
+    currentPoints: number;
+  };
+  skillsProgress: { [skill: string]: number };
+}
+
+interface UserActivity {
+  id: string;
+  type: string;
+  description: string;
+  timestamp: Date;
+  metadata: any;
+}
+
+interface ProjectRecommendation {
+  id?: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  estimatedHours: number;
+  skills: string[];
+  technologies?: string[];
+  personalizedReason?: string;
+  matchScore?: number;
+}
+
+interface LearningPath {
+  id: string;
+  title: string;
+  description: string;
+  projects: ProjectRecommendation[];
+  totalProjects?: number;
+  estimatedWeeks?: number;
+  adaptiveNotes?: string[];
+}
+
+interface ProjectProgress {
+  id: string;
+  projectId: string;
+  status: 'in_progress' | 'not_started' | 'paused' | 'completed';
+  startedAt: Date;
+  currentMilestone: number;
+  title: string;
+  description: string;
+  progress: number;
+  estimatedHours: number;
+  actualHours: number;
+  technologies: string[];
+  learningGoals: string[];
+  milestones: string[];
+  challenges: string[];
+  learnings: string[];
+}
 import ActivityHeatmap from './ActivityHeatmap';
 import ProjectTrackerDashboard from './ProjectTrackerDashboard';
 import AIChatbot from './AIChatbot';
@@ -41,6 +110,11 @@ interface DashboardData {
   recommendations: ProjectRecommendation[];
   learningPath: LearningPath | null;
   userProjects: ProjectProgress[];
+  personalizedContent?: {
+    profileSummary: string;
+    nextSteps: string[];
+    motivationalMessage: string;
+  };
 }
 
 export default function DynamicDashboard() {
@@ -66,30 +140,131 @@ export default function DynamicDashboard() {
     
     setIsLoading(true);
     try {
-      // Initialize AI recommendation engine
-      await aiRecommendationEngine.initializeForUser(user.uid);
-      
-      // Load all dashboard data in parallel
-      const [
-        userProgress,
-        recentActivities,
-        recommendations,
-        learningPath,
-        userProjects
-      ] = await Promise.all([
-        activityTracker.getUserProgress(user.uid),
-        activityTracker.getUserActivities(user.uid, 20),
-        aiRecommendationEngine.generateProjectRecommendations(6),
-        aiRecommendationEngine.generateLearningPath(),
-        projectTracker.getUserProjects(user.uid),
-      ]);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Load dashboard data from the API (personalized content)
+      const dashboardResponse = await fetch('/api/dashboard', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      let personalizedRecommendations: ProjectRecommendation[] = [];
+      let profileSummary = '';
+      let nextSteps: string[] = [];
+      let motivationalMessage = '';
+
+      if (dashboardResponse.ok) {
+        const dashboardApiData = await dashboardResponse.json();
+        console.log('AI-generated dashboard data loaded:', dashboardApiData);
+        
+        if (dashboardApiData.personalizedData) {
+          personalizedRecommendations = dashboardApiData.personalizedData.projectRecommendations?.map((project: any, index: number) => ({
+            id: `ai-${index}`,
+            title: project.title,
+            description: project.description,
+            difficulty: project.difficulty,
+            estimatedHours: project.estimatedHours,
+            skills: project.skills || [],
+            personalizedReason: project.personalizedReason,
+            matchScore: project.matchScore
+          })) || [];
+          
+          profileSummary = dashboardApiData.personalizedData.profileSummary || '';
+          nextSteps = dashboardApiData.personalizedData.nextSteps || [];
+          motivationalMessage = dashboardApiData.personalizedData.motivationalMessage || '';
+        }
+      }
+
+      // Load user progress
+      const progressResponse = await fetch('/api/user/progress', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const progressData = progressResponse.ok ? await progressResponse.json() : { progress: null };
+
+      // Load recent activities
+      const activitiesResponse = await fetch('/api/user/activities?limit=20', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const activitiesData = activitiesResponse.ok ? await activitiesResponse.json() : { activities: [] };
+
+      // Load personalized projects
+      const projectsResponse = await fetch('/api/user/projects', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const projectsData = projectsResponse.ok ? await projectsResponse.json() : { projects: [] };
+
+      // Use AI-generated recommendations if available, otherwise fallback
+      const finalRecommendations = personalizedRecommendations.length > 0 ? personalizedRecommendations : [
+        {
+          id: '1',
+          title: 'Build a Personal Portfolio Website',
+          description: 'Create a responsive portfolio to showcase your skills',
+          difficulty: 'medium',
+          estimatedHours: 15,
+          skills: ['HTML', 'CSS', 'JavaScript', 'React'],
+        },
+        {
+          id: '2',
+          title: 'Todo App with Local Storage',
+          description: 'Build a task management app with persistent data',
+          difficulty: 'easy',
+          estimatedHours: 8,
+          skills: ['JavaScript', 'DOM', 'Local Storage'],
+        },
+      ];
+
+      const learningPath: LearningPath = {
+        id: '1',
+        title: 'Your Personalized Learning Path',
+        description: profileSummary || 'Complete path tailored to your goals and interests',
+        projects: finalRecommendations,
+        totalProjects: finalRecommendations.length,
+        estimatedWeeks: Math.ceil(finalRecommendations.reduce((total, p) => total + p.estimatedHours, 0) / 10),
+        adaptiveNotes: nextSteps,
+      };
+
+      // Map projects data to ProjectProgress format
+      const userProjectsData: ProjectProgress[] = projectsData.projects?.map((project: any) => ({
+        id: project._id,
+        projectId: project._id,
+        status: (project.status === 'in_progress' || project.status === 'paused' || project.status === 'completed') 
+          ? project.status 
+          : 'not_started' as const,
+        startedAt: project.createdAt ? new Date(project.createdAt) : new Date(),
+        currentMilestone: project.progress || 0,
+        title: project.title,
+        description: project.description,
+        progress: project.progress || 0,
+        estimatedHours: project.estimatedHours || 15,
+        actualHours: project.actualHours || 0,
+        technologies: project.technologies || [],
+        learningGoals: project.learningGoals || [],
+        milestones: project.milestones || [],
+        challenges: project.challenges || [],
+        learnings: project.learnings || [],
+      })) || [];
 
       setDashboardData({
-        userProgress,
-        recentActivities,
-        recommendations,
-        learningPath,
-        userProjects,
+        userProgress: progressData.success ? progressData.progress : null,
+        recentActivities: activitiesData.success ? activitiesData.activities : [],
+        recommendations: finalRecommendations,
+        learningPath: learningPath,
+        userProjects: userProjectsData,
+        personalizedContent: {
+          profileSummary,
+          nextSteps,
+          motivationalMessage,
+        },
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -103,18 +278,36 @@ export default function DynamicDashboard() {
     
     setActiveProject(projectId);
     
-    // Start tracking the project
-    await projectTracker.startProject(user.uid, projectId, 20); // Default 20 hours estimate
-    
-    await activityTracker.logActivity({
-      userId: user.uid,
-      type: 'project_start',
-      description: `Started project: ${projectId}`,
-      metadata: { projectId, difficulty: 'medium' },
-    });
-    
-    // Refresh dashboard data
-    await loadDashboardData();
+    try {
+      // Start tracking the project via API
+      const projectResponse = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          estimatedHours: 20,
+          status: 'in_progress'
+        })
+      });
+      if (!projectResponse.ok) throw new Error('Failed to start project');
+
+      // Log activity via API
+      const activityResponse = await fetch('/api/user/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'project_start',
+          description: `Started project: ${projectId}`,
+          metadata: { projectId, difficulty: 'medium' }
+        })
+      });
+      if (!activityResponse.ok) throw new Error('Failed to log activity');
+      
+      // Refresh dashboard data
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Error starting project:', error);
+    }
   };
 
   const handleProjectFeedback = (projectId: string, feedback: any) => {
@@ -151,16 +344,21 @@ export default function DynamicDashboard() {
               <Avatar className="h-16 w-16">
                 <AvatarImage src={user?.photoURL || ''} />
                 <AvatarFallback className="bg-blue-600 text-white text-lg">
-                  {user?.displayName?.charAt(0) || 'U'}
+                  {user?.name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Welcome back, {user?.displayName || 'Developer'}!
+                  Welcome back, {user?.name || 'Developer'}!
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300">
                   Level {userProgress?.level || 1} • {userProgress?.totalPoints || 0} points
                 </p>
+                {dashboardData.personalizedContent?.motivationalMessage && (
+                  <p className="text-blue-600 dark:text-blue-400 font-medium mt-2">
+                    {dashboardData.personalizedContent.motivationalMessage}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -246,7 +444,7 @@ export default function DynamicDashboard() {
                               {project.description}
                             </p>
                             <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                              {project.personalizedReason}
+                              {project.personalizedReason || project.description}
                             </p>
                             
                             <div className="flex items-center space-x-4 mt-3">
@@ -257,18 +455,23 @@ export default function DynamicDashboard() {
                               }>
                                 {project.difficulty}
                               </Badge>
+                              {project.matchScore && (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  {project.matchScore}% match
+                                </Badge>
+                              )}
                               <span className="text-sm text-gray-500 flex items-center">
                                 <Clock className="h-4 w-4 mr-1" />
                                 {project.estimatedHours}h
                               </span>
                               <span className="text-sm text-gray-500 flex items-center">
                                 <Star className="h-4 w-4 mr-1" />
-                                {Math.round(project.matchScore)}% match
+                                {Math.round(project.matchScore || 85)}% match
                               </span>
                             </div>
                             
                             <div className="flex flex-wrap gap-1 mt-3">
-                              {project.technologies.slice(0, 3).map((tech) => (
+                              {(project.skills || project.technologies || []).slice(0, 3).map((tech) => (
                                 <Badge key={tech} variant="outline" className="text-xs">
                                   {tech}
                                 </Badge>
@@ -279,8 +482,8 @@ export default function DynamicDashboard() {
                           <div className="flex flex-col space-y-2 ml-4">
                             <Button
                               size="sm"
-                              onClick={() => handleStartProject(project.id)}
-                              disabled={activeProject === project.id}
+                              onClick={() => project.id && handleStartProject(project.id)}
+                              disabled={activeProject === project.id || !project.id}
                               className="bg-gradient-to-r from-blue-600 to-purple-600"
                             >
                               {activeProject === project.id ? (
@@ -298,7 +501,8 @@ export default function DynamicDashboard() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleProjectFeedback(project.id, 'interested')}
+                              onClick={() => project.id && handleProjectFeedback(project.id, 'interested')}
+                              disabled={!project.id}
                             >
                               <MessageSquare className="h-4 w-4 mr-1" />
                               Feedback
@@ -348,6 +552,50 @@ export default function DynamicDashboard() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* AI Personalized Insights */}
+                {dashboardData.personalizedContent && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Brain className="h-5 w-5 text-purple-600" />
+                        <span>Your Learning Journey</span>
+                        <Badge variant="secondary" className="ml-auto">
+                          AI Insights
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {dashboardData.personalizedContent.profileSummary && (
+                        <div>
+                          <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-2">
+                            Profile Summary
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                            {dashboardData.personalizedContent.profileSummary}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {dashboardData.personalizedContent.nextSteps.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-2 flex items-center">
+                            <ArrowRight className="h-4 w-4 mr-1" />
+                            Recommended Next Steps
+                          </h4>
+                          <ul className="space-y-1">
+                            {dashboardData.personalizedContent.nextSteps.slice(0, 3).map((step, index) => (
+                              <li key={index} className="text-sm text-gray-600 dark:text-gray-300 flex items-start">
+                                <span className="text-blue-500 mr-2">•</span>
+                                {step}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Recent Activity */}
                 <Card>
@@ -426,7 +674,7 @@ export default function DynamicDashboard() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {learningPath.adaptiveNotes.length > 0 && (
+                    {learningPath.adaptiveNotes && learningPath.adaptiveNotes.length > 0 && (
                       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <h4 className="font-medium mb-2">Personalized Notes:</h4>
                         <ul className="space-y-1">
@@ -460,8 +708,8 @@ export default function DynamicDashboard() {
                             </div>
                           </div>
                           <Button
-                            onClick={() => handleStartProject(project.id)}
-                            disabled={activeProject === project.id}
+                            onClick={() => project.id && handleStartProject(project.id)}
+                            disabled={activeProject === project.id || !project.id}
                           >
                             {activeProject === project.id ? (
                               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -482,7 +730,7 @@ export default function DynamicDashboard() {
           <TabsContent value="progress">
             <div className="space-y-6">
               {/* Activity Heatmap */}
-              <ActivityHeatmap userId={user?.uid || ''} />
+              <ActivityHeatmap userId={user?._id || ''} />
               
               {/* Stats Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -567,7 +815,7 @@ export default function DynamicDashboard() {
       <AIChatbot 
         context={{
           currentProject: activeProject || undefined,
-          learningGoals: dashboardData.learningPath?.skills || [],
+          learningGoals: dashboardData.learningPath?.projects?.map(p => p.title) || [],
           userLevel: dashboardData.userProgress?.level.toString() || 'beginner'
         }}
       />

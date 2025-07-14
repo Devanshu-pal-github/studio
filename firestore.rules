@@ -1,14 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Users: users can only read/write their own profile
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-     match /users/{userId}/conversations/{conversationId} {
+    
+    // User conversations
+    match /users/{userId}/conversations/{conversationId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-     match /users/{userId}/onboarding_responses/{responseId} {
+    
+    // User onboarding responses
+    match /users/{userId}/onboarding_responses/{responseId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Activities: users can only read/write their own activities
+    match /activities/{activityId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // User progress: users can only read/write their own progress
+    match /userProgress/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Project progress: users can only read/write their own project progress
+    match /projectProgress/{progressId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // User feedback: users can only read/write their own feedback
+    match /userFeedback/{feedbackId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Projects (general project templates): read-only for authenticated users
+    match /projects/{projectId} {
+      allow read: if request.auth != null;
+    }
+
+    // Learning paths: read-only for authenticated users
+    match /learningPaths/{pathId} {
+      allow read: if request.auth != null;
     }
   }
 }
