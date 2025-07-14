@@ -50,7 +50,9 @@ export default function OnboardingClient() {
           // Fallback welcome message
           setMessages([{ 
             role: 'model', 
-            content: "👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.\n\nTo create the perfect learning path for you, let's start simple: **What's your name, and what made you decide to start learning today?**" 
+            content: "👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.
+
+To create the perfect learning path for you, let's start simple: **What's your name, and what made you decide to start learning today?**" 
           }]);
       })
       .finally(() => {
@@ -95,16 +97,30 @@ export default function OnboardingClient() {
   const saveOnboardingData = async (finalHistory: Message[]) => {
     if (!user) return;
     try {
+        // First, save the raw history to Firestore
         await setDoc(doc(db, 'users', user.uid), {
             onboardingHistory: finalHistory,
             completedOnboarding: true,
         }, { merge: true });
+
+        // Then, call the new endpoint to process and store in vector DB
+        await fetch('/api/onboarding/finalize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: user.uid,
+                history: finalHistory,
+            }),
+        });
+
         // Give a moment for the user to read the final message before redirecting
         setTimeout(() => {
             router.push('/dashboard');
         }, 2000);
     } catch (error) {
-        console.error("Error saving onboarding data: ", error);
+        console.error("Error in final onboarding step: ", error);
     }
   };
 
@@ -178,4 +194,3 @@ export default function OnboardingClient() {
     </div>
   );
 }
-
