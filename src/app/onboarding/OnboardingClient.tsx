@@ -50,9 +50,9 @@ export default function OnboardingClient() {
           // Fallback welcome message
           setMessages([{ 
             role: 'model', 
-            content: "👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.
+            content: `👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.
 
-To create the perfect learning path for you, let's start simple: **What's your name, and what made you decide to start learning today?**" 
+To create the perfect learning path for you, let's start simple: **What's your name, and what made you decide to start learning today?**` 
           }]);
       })
       .finally(() => {
