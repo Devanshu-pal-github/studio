@@ -103,6 +103,93 @@ export async function GET(req: NextRequest) {
     }
 }
 
+export async function POST(req: NextRequest) {
+    try {
+        // Verify authentication
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+        }
+
+        const token = authHeader.substring(7);
+        const decoded = verifyToken(token);
+        
+        if (!decoded) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        }
+
+        const { projectId, estimatedHours, status } = await req.json();
+
+        if (!projectId) {
+            return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+        }
+
+        const db = await connectToDatabase();
+        
+        // Convert userId to ObjectId if it's a string
+        const userObjectId = typeof decoded.userId === 'string' ? new ObjectId(decoded.userId) : decoded.userId;
+        
+        // Check if project already exists for user
+        const existingProject = await db.collection('user_projects').findOne({ 
+            userId: decoded.userId, 
+            _id: new ObjectId(projectId) 
+        });
+
+        if (existingProject) {
+            // Update existing project status
+            const updateResult = await db.collection('user_projects').updateOne(
+                { _id: new ObjectId(projectId), userId: decoded.userId },
+                { 
+                    $set: { 
+                        status: status || 'in_progress',
+                        startedAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                }
+            );
+
+            if (updateResult.matchedCount === 0) {
+                return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+            }
+        } else {
+            // Get project details from recommendations or create new project
+            const projectData = {
+                _id: new ObjectId(projectId),
+                userId: decoded.userId,
+                title: `Project ${projectId}`,
+                description: 'Started from recommendations',
+                status: status || 'in_progress',
+                progress: 0,
+                estimatedHours: estimatedHours || 20,
+                actualHours: 0,
+                technologies: [],
+                learningGoals: [],
+                milestones: [],
+                challenges: [],
+                learnings: [],
+                createdAt: new Date(),
+                startedAt: new Date(),
+                updatedAt: new Date()
+            };
+
+            await db.collection('user_projects').insertOne(projectData);
+        }
+
+        return NextResponse.json({ 
+            success: true, 
+            message: 'Project started successfully',
+            projectId 
+        });
+
+    } catch (error) {
+        console.error('Error starting project:', error);
+        return NextResponse.json({ 
+            error: 'Failed to start project',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }, { status: 500 });
+    }
+}
+
 async function generatePersonalizedProjects(learningContext: any, onboardingHistory: any) {
     // This would use AI to generate projects - for now using fallback
     return generateFallbackProjects(learningContext);

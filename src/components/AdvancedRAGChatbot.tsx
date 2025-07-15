@@ -48,14 +48,31 @@ interface UserContext {
   strugglingAreas: string[];
 }
 
-export default function AdvancedRAGChatbot() {
-  const { user } = useAuth();
+interface AdvancedRAGChatbotProps {
+  user: any;
+  userContext?: any;
+  activities?: any[];
+  projects?: any[];
+  currentProject?: string;
+  learningGoals?: string[];
+  userLevel?: string;
+}
+
+export default function AdvancedRAGChatbot({
+  user,
+  userContext,
+  activities = [],
+  projects = [],
+  currentProject,
+  learningGoals = [],
+  userLevel = 'beginner'
+}: AdvancedRAGChatbotProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [userContext, setUserContext] = useState<UserContext | null>(null);
+  const [userContextState, setUserContextState] = useState<UserContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,32 +97,21 @@ export default function AdvancedRAGChatbot() {
     if (!user) return;
 
     try {
-      // Load user's current context for personalized responses via API
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const [progressResponse, activitiesResponse] = await Promise.all([
-        fetch('/api/user/progress', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch('/api/user/activities?limit=10', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-      ]);
-
-      const progressData = await progressResponse.json();
-      const activitiesData = await activitiesResponse.json();
-
+      // Use the context passed as props for immediate availability
       const context: UserContext = {
-        currentProjects: progressData.success ? progressData.progress?.currentProjects || [] : [],
-        recentActivities: activitiesData.success ? activitiesData.activities || [] : [],
-        userProfile: {}, // Would be loaded from user profile
-        learningGoals: ['Full-stack development', 'React mastery'], // From user profile
-        skillLevel: 'intermediate',
-        strugglingAreas: [],
+        currentProjects: currentProject ? [currentProject] : [],
+        recentActivities: activities,
+        userProfile: {
+          name: user.name,
+          email: user.email,
+          personalizedContent: userContext
+        },
+        learningGoals: learningGoals,
+        skillLevel: userLevel,
+        strugglingAreas: [] // Could be derived from activities
       };
 
-      setUserContext(context);
+      setUserContextState(context);
     } catch (error) {
       console.error('Error loading user context:', error);
     }

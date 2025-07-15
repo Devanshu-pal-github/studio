@@ -102,7 +102,7 @@ interface ProjectProgress {
 }
 import ActivityHeatmap from './ActivityHeatmap';
 import ProjectTrackerDashboard from './ProjectTrackerDashboard';
-import AIChatbot from './AIChatbot';
+import AdvancedRAGChatbot from './AdvancedRAGChatbot';
 
 interface DashboardData {
   userProgress: UserProgress | null;
@@ -811,13 +811,15 @@ export default function DynamicDashboard() {
         </Tabs>
       </div>
 
-      {/* AI Chatbot - Available throughout the dashboard */}
-      <AIChatbot 
-        context={{
-          currentProject: activeProject || undefined,
-          learningGoals: dashboardData.learningPath?.projects?.map(p => p.title) || [],
-          userLevel: dashboardData.userProgress?.level.toString() || 'beginner'
-        }}
+      {/* Advanced RAG Chatbot - Available throughout the dashboard with full user context */}
+      <AdvancedRAGChatbot 
+        user={user}
+        userContext={dashboardData.personalizedContent}
+        activities={dashboardData.recentActivities}
+        projects={dashboardData.userProjects}
+        currentProject={activeProject || undefined}
+        learningGoals={dashboardData.learningPath?.projects?.map(p => p.title) || []}
+        userLevel={dashboardData.userProgress?.level.toString() || 'beginner'}
       />
     </div>
   );

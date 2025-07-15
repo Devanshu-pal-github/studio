@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { advancedPromptingEngine, UserContext } from '@/lib/advanced-prompting';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function GET(req: NextRequest) {
@@ -31,13 +32,24 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        // Load user's activities and projects for context
+        const [userActivities, userProjects] = await Promise.all([
+            db.collection('user_activities').find({ userId: decoded.userId }).toArray(),
+            db.collection('user_projects').find({ userId: decoded.userId }).toArray()
+        ]);
+
         if (!user.completedOnboarding || !user.onboardingHistory) {
             return NextResponse.json({ error: 'Onboarding not completed. Please complete onboarding first.' }, { status: 400 });
         }
 
         try {
             // Generate truly personalized dashboard content using AI based on onboarding data
-            const personalizedData = await generatePersonalizedDashboard(user.onboardingHistory, user.name);
+            const personalizedData = await generatePersonalizedDashboard(
+                user.onboardingHistory, 
+                user.name, 
+                userActivities, 
+                userProjects
+            );
 
             return NextResponse.json({
                 success: true,
@@ -79,11 +91,16 @@ export async function GET(req: NextRequest) {
 }
 
 // AI-powered personalized dashboard generation
-async function generatePersonalizedDashboard(onboardingHistory: any[], userName: string) {
+async function generatePersonalizedDashboard(
+    onboardingHistory: any[], 
+    userName: string, 
+    userActivities: any[], 
+    userProjects: any[]
+) {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     
     if (!apiKey || apiKey === 'your_google_ai_api_key_here') {
-        return generateFallbackDashboard(onboardingHistory, userName);
+        return generateFallbackDashboard(onboardingHistory, userName, userActivities, userProjects);
     }
 
     try {
@@ -96,57 +113,43 @@ async function generatePersonalizedDashboard(onboardingHistory: any[], userName:
             `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.content}`
         ).join('\n') || '';
 
-        const prompt = `You are an AI learning mentor analyzing a user's onboarding conversation to create a highly personalized learning dashboard. 
+        // Use the advanced prompting engine for deep semantic analysis
+        const userContext: UserContext = {
+            onboardingResponses: onboardingHistory.reduce((acc, entry) => {
+                if (entry.question && entry.response) {
+                    const key = entry.question.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    acc[key] = entry.response;
+                }
+                return acc;
+            }, {} as any),
+            activities: userActivities || [],
+            projectHistory: userProjects || [],
+            learningProgress: [],
+            interactions: onboardingHistory,
+            timestamp: new Date()
+        };
 
-User Name: ${userName}
+        // Generate truly personalized dashboard using advanced prompting
+        const dashboardData = await advancedPromptingEngine.generatePersonalizedContent(
+            userContext,
+            'dashboard'
+        );
 
-ONBOARDING CONVERSATION:
-${conversationContext}
-
-Based on this conversation, generate a personalized dashboard response in valid JSON format with these exact fields:
-
-{
-  "profileSummary": "A warm, encouraging 2-3 sentence summary that reflects their specific goals, interests, and learning style mentioned in the conversation",
-  "projectRecommendations": [
-    {
-      "title": "Specific project title based on their interests",
-      "description": "Detailed description showing why this project matches their goals",
-      "difficulty": "beginner|intermediate|advanced (based on their experience level)",
-      "estimatedHours": number_based_on_project_scope,
-      "skills": ["skill1", "skill2", "skill3"],
-      "personalizedReason": "Why this project is perfect for THIS specific user",
-      "matchScore": percentage_match_to_user_goals
-    }
-  ],
-  "nextSteps": ["3-4 specific next actions based on their current level and goals"],
-  "motivationalMessage": "Personal encouragement based on their specific situation and challenges mentioned"
-}
-
-Generate 3-4 projects that are:
-1. Directly relevant to their stated goals
-2. Match their experience level
-3. Use technologies they're interested in
-4. Address their specific learning style
-5. Consider their time constraints and challenges mentioned
-
-Make everything highly specific to THIS user - no generic responses!`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        // Parse the JSON response
-        const dashboardData = JSON.parse(text);
         return dashboardData;
 
     } catch (error) {
-        console.error('AI dashboard generation failed:', error);
-        return generateFallbackDashboard(onboardingHistory, userName);
+        console.error('Advanced AI dashboard generation failed:', error);
+        return generateFallbackDashboard(onboardingHistory, userName, userActivities, userProjects);
     }
 }
 
 // Enhanced fallback dashboard based on onboarding data
-function generateFallbackDashboard(onboardingHistory: any[], userName: string) {
+function generateFallbackDashboard(
+    onboardingHistory: any[], 
+    userName: string, 
+    userActivities: any[], 
+    userProjects: any[]
+) {
     const userMessages = onboardingHistory?.filter((msg: any) => msg.role === 'user') || [];
     
     // Analyze user responses to create personalized content

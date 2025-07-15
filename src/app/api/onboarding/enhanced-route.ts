@@ -225,7 +225,7 @@ async function personalizeQuestion(baseQuestion: OnboardingQuestion, history: Me
     try {
         // Build context for AI personalization
         const userContext = {
-            onboardingResponses: {} as Record<string, string>,
+            onboardingResponses: {},
             activities: [],
             projectHistory: [],
             learningProgress: [],
@@ -332,13 +332,14 @@ async function extractComprehensiveLearningContext(history: Message[]): Promise<
         technicalProfile: {
             experienceLevel: extractExperienceLevel(userMessages),
             technologies: extractTechnologies(allUserText),
+            strengths: extractStrengths(allUserText),
             learningGaps: identifyLearningGaps(allUserText),
             preferredStack: inferPreferredTechStack(allUserText)
         },
         
         // Learning preferences
         learningPreferences: {
-            style: inferLearningStyle(allUserText),
+            style: extractLearningStyle(userMessages),
             pace: inferLearningPace(allUserText),
             timeAvailability: extractTimeAvailability(userMessages),
             preferredFormat: inferPreferredFormat(allUserText),
@@ -714,9 +715,8 @@ function extractConcerns(text: string): string[] {
 
 function analyzeCommunicationStyle(text: string): string {
     const lowerText = text.toLowerCase();
-    const formalMatches = text.match(/\b[A-Z][a-z]+\b/g);
     
-    if (lowerText.includes('professional') || lowerText.includes('formal') || (formalMatches && formalMatches.length > 5)) return 'formal';
+    if (lowerText.includes('professional') || lowerText.includes('formal') || text.match(/\b[A-Z][a-z]+\b/g)?.length > 5) return 'formal';
     if (lowerText.includes('awesome') || lowerText.includes('cool') || text.includes('!')) return 'enthusiastic';
     if (lowerText.includes('technical') || lowerText.includes('specific') || lowerText.includes('algorithm')) return 'technical';
     if (lowerText.includes('simple') || lowerText.includes('basic') || lowerText.includes('explain')) return 'casual';
