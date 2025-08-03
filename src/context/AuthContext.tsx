@@ -12,7 +12,7 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const PUBLIC_ROUTES = ['/landing', '/login', '/signup', '/forgot-password', '/reset-password'];
+const PUBLIC_ROUTES = ['/', '/landing', '/login', '/signup', '/forgot-password', '/reset-password'];
 const ONBOARDING_ROUTE = '/onboarding';
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -56,14 +56,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!user.completedOnboarding && pathname !== ONBOARDING_ROUTE) {
         // Force onboarding if not completed
         router.push(ONBOARDING_ROUTE);
-      } else if (user.completedOnboarding && PUBLIC_ROUTES.includes(pathname)) {
+      } else if (user.completedOnboarding && PUBLIC_ROUTES.includes(pathname) && pathname !== '/') {
         // Redirect to dashboard if trying to access public routes when authenticated
+        // But allow authenticated users to stay on landing page if they want
         router.push('/dashboard');
       }
     } else {
-      // User is not authenticated
-      if (!PUBLIC_ROUTES.includes(pathname) && pathname !== ONBOARDING_ROUTE) {
-        router.push('/landing');
+      // User is not authenticated - only redirect if they're trying to access protected routes
+      // Allow unauthenticated users to freely browse public routes including landing page
+      const isProtectedRoute = !PUBLIC_ROUTES.includes(pathname) && pathname !== ONBOARDING_ROUTE;
+      if (isProtectedRoute) {
+        router.push('/');
       }
     }
   }, [user, loading, pathname, router]);

@@ -12,6 +12,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Show navigation bar for most pages except auth pages
   const showNavigation = !isAuthPage;
   
+  // Add padding top for pages with navigation bar
+  const addPaddingTop = showNavigation;
+  
   // Show sidebar for authenticated pages (dashboard, profile, etc)
   const showSidebar = !['/landing', '/login', '/signup', '/', '/onboarding'].includes(pathname);
 
@@ -26,7 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <>
         {showNavigation && <NavigationBar />}
-        <div className={showNavigation ? 'pt-16' : ''}>{children}</div>
+        <div className={addPaddingTop ? 'pt-16' : ''}>{children}</div>
       </>
     );
   }

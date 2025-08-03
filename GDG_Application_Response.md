@@ -38,24 +38,32 @@ Our prototype leverages advanced Google AI technologies to create a hyper-person
    - Semantic search across student's learning history
    - Personalized doubt resolution and learning guidance
 
-### Technical Architecture:
+## Link to Your Prototype
 
-- **Frontend**: Next.js 15.3.3 with modern React patterns
-- **Backend**: Firebase Studio integration with Firestore
-- **AI Engine**: Google Gemini API for natural language processing
-- **Vector Storage**: Enhanced vector embeddings for semantic context
-- **Authentication**: Firebase Auth for secure user management
-- **Deployment**: Firebase Hosting for scalable web deployment
+**Live Demo**: [Deploy to Vercel and add your URL here]
 
-### Advanced AI Integration:
+**GitHub Repository**: https://github.com/Devanshu-pal-github/studio
 
-- **Semantic Analysis**: Every student interaction is semantically analyzed and stored
-- **Predictive Learning**: AI predicts optimal next steps based on learning patterns
-- **Adaptive Content**: Dynamic content generation tailored to individual learning styles
-- **Contextual Recommendations**: Smart project and resource suggestions
-- **Progress Intelligence**: AI-driven insights into learning effectiveness
+### Quick Setup Instructions for Review:
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up environment variables (Firebase config, Gemini API key)
+4. Run development server: `npm run dev`
+5. Access the application at `http://localhost:9002`
 
-## Google Technologies Used in the Solution
+### Demo Flow:
+1. **Onboarding**: Navigate to `/onboarding` to experience the AI-powered personalized questionnaire
+2. **Dashboard**: After onboarding, view the dynamically generated, personalized dashboard
+3. **AI Chatbot**: Interact with the context-aware AI mentor that remembers your entire learning journey
+4. **Project Flow**: Start and track progress on AI-recommended projects
+
+### Key Demo Features:
+- Every response is semantically analyzed and stored
+- AI generates completely personalized content (no generic responses)
+- Real-time adaptation based on user behavior and preferences
+- Advanced chain-of-thought reasoning for educational guidance
+
+## Mention of the Google Technologies Used in the Solution
 
 ### Primary Google Technologies:
 
