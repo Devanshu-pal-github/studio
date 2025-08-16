@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,18 @@ export default function LoginPage() {
   const [success, setSuccess] = useState('');
   
   const router = useRouter();
-  const { login: authLogin } = useAuth();
+  const { login: authLogin, user } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      if (!user.completedOnboarding) {
+        router.push('/onboarding');
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,10 +75,8 @@ export default function LoginPage() {
         localStorage.setItem('token', data.token);
         authLogin(data.user, data.token);
         
-        // Redirect to dashboard
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 1500);
+        // The AuthContext will handle the redirect based on onboarding status
+        // No need to manually redirect here
       } else {
         setError(data.error || 'Failed to sign in');
       }
@@ -85,6 +94,18 @@ export default function LoginPage() {
       [e.target.name]: e.target.value,
     }));
   };
+
+  // Don't render the form if user is already logged in
+  if (user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">

@@ -137,11 +137,11 @@ export default function NavigationBar() {
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full border-2 border-gray-200 bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold">
-                    {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                    {(user.name || user.displayName || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{user.displayName || 'User'}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name || user.displayName || 'User'}</p>
                   <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                     Level 1
                   </Badge>

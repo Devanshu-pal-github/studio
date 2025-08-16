@@ -10,16 +10,19 @@ interface AuthContextType {
   loading: boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
+  verifyToken: () => Promise<boolean>;
 }
 
 const PUBLIC_ROUTES = ['/', '/landing', '/login', '/signup', '/forgot-password', '/reset-password'];
 const ONBOARDING_ROUTE = '/onboarding';
+const PROTECTED_ROUTES = ['/dashboard', '/profile', '/onboarding'];
 
 const AuthContext = createContext<AuthContextType>({ 
   user: null, 
   loading: true,
   login: () => {},
-  logout: () => {}
+  logout: () => {},
+  verifyToken: async () => false
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -28,66 +31,127 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Load user from localStorage on app start
+  // Debug logging
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-      } catch (error) {
-        console.error('Failed to parse stored user data:', error);
+    console.log('AuthContext Debug:', {
+      user: user ? 'authenticated' : 'not authenticated',
+      loading,
+      pathname,
+      completedOnboarding: user?.completedOnboarding
+    });
+  }, [user, loading, pathname]);
+
+  // Verify JWT token with server
+  const verifyToken = async (): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return false;
+
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        return true;
+      } else {
+        // Token is invalid, clear it
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setUser(null);
+        return false;
       }
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      return false;
     }
-    
-    setLoading(false);
+  };
+
+  // Load user and verify token on app start
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      
+      if (token && userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+          
+          // Verify token with server
+          const isValid = await verifyToken();
+          if (!isValid) {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Failed to parse stored user data:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+        }
+      }
+      
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
-  // Handle routing based on auth state
+  // Simple routing logic - only redirect for protected routes when not authenticated
   useEffect(() => {
     if (loading) return;
 
-    if (user) {
-      // User is authenticated
-      if (!user.completedOnboarding && pathname !== ONBOARDING_ROUTE) {
-        // Force onboarding if not completed
-        router.push(ONBOARDING_ROUTE);
-      } else if (user.completedOnboarding && PUBLIC_ROUTES.includes(pathname) && pathname !== '/') {
-        // Redirect to dashboard if trying to access public routes when authenticated
-        // But allow authenticated users to stay on landing page if they want
-        router.push('/dashboard');
-      }
-    } else {
-      // User is not authenticated - only redirect if they're trying to access protected routes
-      // Allow unauthenticated users to freely browse public routes including landing page
-      const isProtectedRoute = !PUBLIC_ROUTES.includes(pathname) && pathname !== ONBOARDING_ROUTE;
-      if (isProtectedRoute) {
-        router.push('/');
-      }
+    // If user is not authenticated and trying to access protected route
+    if (!user && PROTECTED_ROUTES.includes(pathname)) {
+      console.log('Redirecting to login for protected route:', pathname);
+      router.push('/login');
     }
   }, [user, loading, pathname, router]);
 
-  const login = (userData: User, token: string) => {
+  const login = async (userData: User, token: string) => {
+    console.log('Login called with user:', userData);
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     
+    // Simple redirect logic
     if (!userData.completedOnboarding) {
+      console.log('Redirecting to onboarding after login');
       router.push('/onboarding');
     } else {
+      console.log('Redirecting to dashboard after login');
       router.push('/dashboard');
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Call logout API to invalidate token on server
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    }
+    
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-    router.push('/landing');
+    router.push('/');
   };
 
   if (loading) {
@@ -99,7 +163,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user,
       loading,
       login,
-      logout
+      logout,
+      verifyToken
     }}>
       {children}
     </AuthContext.Provider>
