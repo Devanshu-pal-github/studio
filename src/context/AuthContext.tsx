@@ -1,15 +1,15 @@
 
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { User } from '@/lib/client-auth';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (user: User, token: string) => void;
-  logout: () => void;
+  login: (user: User, token: string) => Promise<void>;
+  logout: () => Promise<void>;
   verifyToken: () => Promise<boolean>;
 }
 
@@ -20,8 +20,8 @@ const PROTECTED_ROUTES = ['/dashboard', '/profile', '/onboarding'];
 const AuthContext = createContext<AuthContextType>({ 
   user: null, 
   loading: true,
-  login: () => {},
-  logout: () => {},
+  login: async () => {},
+  logout: async () => {},
   verifyToken: async () => false
 });
 
@@ -33,11 +33,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Debug logging
   useEffect(() => {
-    console.log('AuthContext Debug:', {
-      user: user ? 'authenticated' : 'not authenticated',
+    console.log('🔍 AuthContext Debug:', {
+      user: user ? { id: user._id, name: user.name, completedOnboarding: user.completedOnboarding } : 'not authenticated',
       loading,
       pathname,
-      completedOnboarding: user?.completedOnboarding
+      isPublicRoute: PUBLIC_ROUTES.includes(pathname),
+      isProtectedRoute: PROTECTED_ROUTES.includes(pathname)
     });
   }, [user, loading, pathname]);
 
@@ -47,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const token = localStorage.getItem('token');
       if (!token) return false;
 
-      const response = await fetch('/api/auth/verify', {
+      const response = await fetch('/api/auth/verify-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,32 +110,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (loading) return;
 
+    console.log('🚀 Routing Logic:', { user: !!user, pathname, loading });
+
     // If user is not authenticated and trying to access protected route
     if (!user && PROTECTED_ROUTES.includes(pathname)) {
-      console.log('Redirecting to login for protected route:', pathname);
+      console.log('❌ Redirecting to login for protected route:', pathname);
       router.push('/login');
+      return;
+    }
+
+    // If user is authenticated and on public auth pages, redirect appropriately
+    if (user && (pathname === '/login' || pathname === '/signup')) {
+      if (!user.completedOnboarding) {
+        console.log('📝 Redirecting authenticated user to onboarding');
+        router.push('/onboarding');
+      } else {
+        console.log('📊 Redirecting authenticated user to dashboard');
+        router.push('/dashboard');
+      }
+      return;
     }
   }, [user, loading, pathname, router]);
 
   const login = async (userData: User, token: string) => {
-    console.log('Login called with user:', userData);
+    console.log('🔐 Login called with user:', {
+      id: userData._id,
+      name: userData.name,
+      completedOnboarding: userData.completedOnboarding
+    });
+    
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     
-    // Simple redirect logic
-    if (!userData.completedOnboarding) {
-      console.log('Redirecting to onboarding after login');
-      router.push('/onboarding');
-    } else {
-      console.log('Redirecting to dashboard after login');
-      router.push('/dashboard');
-    }
+    // Let the useEffect handle the redirect to avoid double redirects
+    console.log('✅ User set in context, useEffect will handle redirect');
   };
 
   const logout = async () => {
+    console.log('🚪 Logout called');
     try {
-      // Call logout API to invalidate token on server
+      // Call logout API to invalidate token on server (optional for simple demo)
       const token = localStorage.getItem('token');
       if (token) {
         await fetch('/api/auth/logout', {
@@ -151,21 +167,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
+    console.log('🏠 Redirecting to home after logout');
     router.push('/');
   };
+
+  const contextValue = useMemo(() => ({
+    user,
+    loading,
+    login,
+    logout,
+    verifyToken
+  }), [user, loading]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      loading,
-      login,
-      logout,
-      verifyToken
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

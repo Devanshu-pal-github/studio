@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { getDatabase } from './mongodb';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
 
 export interface User {
   _id?: string;

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { COLLECTIONS } from '@/lib/database/schemas';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+// Simple in-memory user store for demo purposes
+// In production, this would be replaced with a proper database
+const users = new Map();
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,29 +31,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
-
     // Check if user already exists
-    const existingUser = await db.collection(COLLECTIONS.USERS).findOne({ email: email.toLowerCase() });
-    if (existingUser) {
+    if (users.has(email.toLowerCase())) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
       );
     }
 
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Create user
+    // Create user (in production, hash the password)
+    const userId = Date.now().toString();
     const newUser = {
+      _id: userId,
       name: name.trim(),
       email: email.toLowerCase(),
-      password: hashedPassword,
+      password, // In production, hash this
       createdAt: new Date(),
-      updatedAt: new Date(),
-      emailVerified: false,
+      emailVerified: true, // Auto-verify for demo
       completedOnboarding: false,
       experienceLevel: undefined,
       interests: [],
@@ -64,45 +56,10 @@ export async function POST(request: NextRequest) {
       techStack: [],
     };
 
-    const result = await db.collection(COLLECTIONS.USERS).insertOne(newUser);
-    const userId = result.insertedId.toString();
+    users.set(email.toLowerCase(), newUser);
 
-    // Initialize user progress
-    const initialProgress = {
-      userId,
-      totalPoints: 0,
-      level: 1,
-      streak: 0,
-      activeDays: 0,
-      completedProjects: [],
-      currentProjects: [],
-      achievements: [],
-      weeklyGoals: {
-        targetProjects: 2,
-        targetPoints: 500,
-        currentProjects: 0,
-        currentPoints: 0,
-      },
-      lastActiveDate: new Date(),
-      skillsProgress: {},
-      weeklyActivity: {},
-      monthlyActivity: {},
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await db.collection(COLLECTIONS.USER_PROGRESS).insertOne(initialProgress);
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId, 
-        email: email.toLowerCase(), 
-        name: name.trim() 
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Generate simple token (in production, use proper JWT)
+    const token = Buffer.from(JSON.stringify({ userId, email: email.toLowerCase(), name: name.trim() })).toString('base64');
 
     // Return user data (without password)
     const userResponse = {
@@ -110,7 +67,7 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       email: email.toLowerCase(),
       createdAt: newUser.createdAt,
-      emailVerified: false,
+      emailVerified: true,
       completedOnboarding: false,
     };
 

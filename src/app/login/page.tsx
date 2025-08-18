@@ -27,10 +27,18 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   useEffect(() => {
+    console.log('🔍 Login page - User state check:', {
+      user: user ? 'authenticated' : 'not authenticated',
+      userId: user?._id,
+      completedOnboarding: user?.completedOnboarding
+    });
+    
     if (user) {
       if (!user.completedOnboarding) {
+        console.log('➡️ Login page redirecting to onboarding');
         router.push('/onboarding');
       } else {
+        console.log('➡️ Login page redirecting to dashboard');
         router.push('/dashboard');
       }
     }
@@ -55,7 +63,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/signin', {
+      const response = await fetch('/api/auth/signin-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,11 +105,12 @@ export default function LoginPage() {
 
   // Don't render the form if user is already logged in
   if (user) {
+    console.log('🔄 User is authenticated, should redirect...');
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Redirecting...</p>
+          <p className="text-gray-600 dark:text-gray-400">Already logged in. Redirecting to dashboard...</p>
         </div>
       </div>
     );

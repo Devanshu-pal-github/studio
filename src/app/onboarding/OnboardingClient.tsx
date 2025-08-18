@@ -45,30 +45,22 @@ export default function OnboardingClient() {
   const startOnboarding = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/onboarding/enhanced', {
+      const response = await fetch('/api/onboarding/chat-simple', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({ 
-          history: [],
-          userId: user?._id 
+          history: []
         }),
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          // Token expired or invalid
-          logout();
-          router.push('/login');
-          return;
-        }
         throw new Error('Failed to start onboarding');
       }
 
       const data = await response.json();
-      setMessages([{ role: 'assistant', content: data.message }]);
+      setMessages([{ role: 'assistant', content: data.response }]);
     } catch (error) {
       console.error("Failed to start onboarding:", error);
       // Fallback welcome message
@@ -93,32 +85,25 @@ To create the perfect learning path for you, let's start simple: **What's your n
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/onboarding/enhanced', {
+      const response = await fetch('/api/onboarding/chat-simple', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({ 
-          history: newMessages,
-          userId: user._id 
+          history: newMessages
         }),
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          logout();
-          router.push('/login');
-          return;
-        }
         throw new Error('Failed to get response');
       }
 
       const data = await response.json();
       
-      if (data.message.includes('[DONE]')) {
+      if (data.response.includes('[DONE]')) {
         // Conversation is complete
-        const finalMessage = data.message.replace('[DONE]', '').trim();
+        const finalMessage = data.response.replace('[DONE]', '').trim();
         setMessages(prev => [...prev, { role: 'assistant', content: finalMessage }]);
         
         // Complete onboarding after a short delay
@@ -126,7 +111,7 @@ To create the perfect learning path for you, let's start simple: **What's your n
           await completeOnboarding();
         }, 2000);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
       }
 
     } catch (error) {
@@ -142,11 +127,10 @@ To create the perfect learning path for you, let's start simple: **What's your n
 
   const completeOnboarding = async () => {
     try {
-      const response = await fetch('/api/user/complete-onboarding', {
+      const response = await fetch('/api/onboarding/complete-simple', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({ 
           userId: user?._id,
@@ -155,6 +139,11 @@ To create the perfect learning path for you, let's start simple: **What's your n
       });
 
       if (response.ok) {
+        // Update user in context
+        if (user) {
+          const updatedUser = { ...user, completedOnboarding: true };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
         // Redirect to dashboard
         router.push('/dashboard');
       } else {

@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { COLLECTIONS } from '@/lib/database/schemas';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+// Simple in-memory user store for demo purposes
+// This should match the store in signup-simple
+const users = new Map();
+
+// Add a demo user for testing
+users.set('demo@test.com', {
+  _id: 'demo123',
+  name: 'Demo User',
+  email: 'demo@test.com',
+  password: 'demo123', // In production, this would be hashed
+  createdAt: new Date(),
+  emailVerified: true,
+  completedOnboarding: false,
+  experienceLevel: undefined,
+  interests: [],
+  goals: [],
+  learningStyle: undefined,
+  techStack: [],
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,13 +32,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
-
-    // Find user by email
-    const user = await db.collection(COLLECTIONS.USERS).findOne({ 
-      email: email.toLowerCase() 
-    });
-
+    // Find user
+    const user = users.get(email.toLowerCase());
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -32,40 +41,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+    // Check password (in production, use bcrypt.compare)
+    if (user.password !== password) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: user._id.toString(), 
-        email: user.email, 
-        name: user.name 
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Update last login
-    await db.collection(COLLECTIONS.USERS).updateOne(
-      { _id: user._id },
-      { 
-        $set: { 
-          lastLoginAt: new Date(),
-          updatedAt: new Date()
-        } 
-      }
-    );
+    // Generate simple token (in production, use proper JWT)
+    const token = Buffer.from(JSON.stringify({ 
+      userId: user._id, 
+      email: user.email, 
+      name: user.name 
+    })).toString('base64');
 
     // Return user data (without password)
     const userResponse = {
-      _id: user._id.toString(),
+      _id: user._id,
       name: user.name,
       email: user.email,
       photoURL: user.photoURL,
