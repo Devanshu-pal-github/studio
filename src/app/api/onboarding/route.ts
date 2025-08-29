@@ -19,19 +19,32 @@ interface OnboardingQuestion {
 
 export async function POST(req: NextRequest) {
     try {
+        // Require Authorization header
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader?.startsWith('Bearer ')) {
+            return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+        }
+        const token = authHeader.substring(7);
+        const decoded = verifyToken(token);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        }
         const body = await req.text();
         if (!body) {
             return NextResponse.json({ error: 'Empty request body' }, { status: 400 });
         }
 
         const { history, userId } = JSON.parse(body);
+        if (!userId || decoded.userId !== userId) {
+            return NextResponse.json({ error: 'Token does not match userId' }, { status: 403 });
+        }
         
         if (!history || !Array.isArray(history)) {
             return NextResponse.json({ error: 'Invalid history provided' }, { status: 400 });
         }
 
         // Store every user response in the enhanced vector store for context
-        if (userId) {
+    if (userId) {
             await storeOnboardingContext(userId, history);
         }
         
@@ -428,15 +441,16 @@ function calculateContextRichness(context: any): number {
 // Enhanced semantic analysis functions
 function extractUserName(history: Message[]): string {
     const firstUserMessage = history.find(msg => msg.role === 'user')?.content || '';
-    const patterns = [
-        /(?:i'm|i am|my name is|call me|name's)\s+([a-zA-Z]+)/i,
-        /^([a-zA-Z]+)(?:\s|,|!|\.|$)/,
-        /hi.*?([a-zA-Z]+)/i
+    const source = firstUserMessage.toLowerCase();
+    const patterns: RegExp[] = [
+        /(?:i'm|i am|my name is|call me|name's)\s+([a-z]{2,})/,
+        /^([a-z]{2,})(?:\s|,|!|\.|$)/,
+        /\bhi\b.*?([a-z]{2,})/
     ];
     
     for (const pattern of patterns) {
-        const match = firstUserMessage.match(pattern);
-        if (match && match[1] && match[1].length > 1) {
+        const match = pattern.exec(source);
+    if (match?.[1] && match[1].length > 1) {
             return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
         }
     }
@@ -893,7 +907,7 @@ function inferLearnerType(context: any): string {
 }
 
 function suggestLearningPath(context: any): string {
-    const { objectives, technicalProfile, learningPreferences } = context;
+    const { objectives, technicalProfile } = context;
     
     if (objectives.primaryGoals.includes('web_development')) {
         return technicalProfile.experienceLevel === 'beginner' ? 'web_development_fundamentals' : 'advanced_web_development';

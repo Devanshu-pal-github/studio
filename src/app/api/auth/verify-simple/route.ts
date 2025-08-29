@@ -1,63 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
 
 export async function POST(request: NextRequest) {
   try {
     // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = request.headers.get('authorization');
+  if (!(authHeader?.startsWith('Bearer '))) {
       return NextResponse.json(
         { error: 'No token provided' },
         { status: 401 }
       );
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    try {
-      // Decode simple token (in production, use proper JWT verification)
-      const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
-      
-      if (!decoded.userId) {
-        return NextResponse.json(
-          { error: 'Invalid token' },
-          { status: 401 }
-        );
-      }
-
-      // In a real app, you'd look up the user in the database
-      // For demo, just return mock user data
-      const user = {
-        _id: decoded.userId,
-        name: decoded.name,
-        email: decoded.email,
-        photoURL: null,
-        createdAt: new Date(),
-        emailVerified: true,
-        completedOnboarding: false, // Always false for demo to show onboarding
-        experienceLevel: undefined,
-        interests: [],
-        goals: [],
-        learningStyle: undefined,
-        techStack: [],
-      };
-
-      return NextResponse.json({
-        success: true,
-        user
-      });
-
-    } catch (decodeError) {
+  // Verify JWT token (demo version doesn't hit DB)
+  const decoded = jwt.verify(token, JWT_SECRET) as any;
+    
+    if (!decoded.userId) {
       return NextResponse.json(
-        { error: 'Invalid token format' },
+        { error: 'Invalid token' },
         { status: 401 }
       );
     }
 
-  } catch (error) {
+    // Return mock user data
+    const user = {
+      _id: decoded.userId,
+  name: decoded.name,
+  email: decoded.email,
+      photoURL: null,
+      createdAt: new Date(),
+      emailVerified: true,
+      completedOnboarding: false,
+      experienceLevel: undefined,
+      interests: [],
+      goals: [],
+      learningStyle: undefined,
+      techStack: [],
+    };
+
+    return NextResponse.json({ success: true, user });
+
+  } catch (error: any) {
     console.error('Token verification error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

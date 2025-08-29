@@ -93,6 +93,18 @@ export async function POST(request: NextRequest) {
 
     await db.collection(COLLECTIONS.USER_PROGRESS).insertOne(initialProgress);
 
+    // Log activity: signup
+    try {
+      await db.collection(COLLECTIONS.USER_ACTIVITIES).insertOne({
+        id: `activity-${userId}-${Date.now()}`,
+        userId,
+        type: 'resource_viewed',
+        timestamp: new Date(),
+        description: 'User signed up',
+        metadata: { source: 'api/auth/signup' }
+      });
+    } catch {}
+
     // Generate JWT token
     const token = jwt.sign(
       { 
@@ -114,12 +126,23 @@ export async function POST(request: NextRequest) {
       completedOnboarding: false,
     };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Account created successfully',
       user: userResponse,
       token,
     });
+
+    // Set auth cookie
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Signup error:', error);

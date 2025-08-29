@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ import {
   Flame,
   CheckCircle2,
   PlayCircle,
-  PauseCircle,
+  // PauseCircle,
   RefreshCw,
   Brain,
   ArrowRight
@@ -115,6 +115,17 @@ interface DashboardData {
     nextSteps: string[];
     motivationalMessage: string;
   };
+  profileSnapshot?: {
+    name: string;
+    email: string;
+    experience: string;
+    goals: string[];
+    interests: string[];
+    completedOnboarding: boolean;
+    streak: number;
+    level: number;
+    points: number;
+  };
 }
 
 export default function DynamicDashboard() {
@@ -203,6 +214,12 @@ export default function DynamicDashboard() {
       });
       const projectsData = projectsResponse.ok ? await projectsResponse.json() : { projects: [] };
 
+      // Load profile snapshot
+      const profileResponse = await fetch('/api/user/profile', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const profileData = profileResponse.ok ? await profileResponse.json() : { profile: null };
+
       // Use AI-generated recommendations if available, otherwise fallback
       const finalRecommendations = personalizedRecommendations.length > 0 ? personalizedRecommendations : [
         {
@@ -265,6 +282,7 @@ export default function DynamicDashboard() {
           nextSteps,
           motivationalMessage,
         },
+  profileSnapshot: profileData.success ? profileData.profile : undefined,
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -280,9 +298,10 @@ export default function DynamicDashboard() {
     
     try {
       // Start tracking the project via API
-      const projectResponse = await fetch('/api/projects', {
+      const token = localStorage.getItem('token');
+      const projectResponse = await fetch('/api/user/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           projectId,
           estimatedHours: 20,
@@ -294,7 +313,7 @@ export default function DynamicDashboard() {
       // Log activity via API
       const activityResponse = await fetch('/api/user/activities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           type: 'project_start',
           description: `Started project: ${projectId}`,
@@ -448,13 +467,16 @@ export default function DynamicDashboard() {
                             </p>
                             
                             <div className="flex items-center space-x-4 mt-3">
-                              <Badge variant={
-                                project.difficulty === 'easy' ? 'secondary' :
-                                project.difficulty === 'medium' ? 'default' :
-                                project.difficulty === 'hard' ? 'destructive' : 'destructive'
-                              }>
-                                {project.difficulty}
-                              </Badge>
+                              {(() => {
+                                const diff = project.difficulty;
+                                let variant: any = 'destructive';
+                                if (diff === 'easy') {
+                                  variant = 'secondary';
+                                } else if (diff === 'medium') {
+                                  variant = 'default';
+                                }
+                                return <Badge variant={variant}>{project.difficulty}</Badge>;
+                              })()}
                               {project.matchScore && (
                                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                                   {project.matchScore}% match
@@ -521,6 +543,50 @@ export default function DynamicDashboard() {
                 animate={{ opacity: 1, x: 0 }}
                 className="space-y-6"
               >
+                {/* Profile Snapshot */}
+                {dashboardData.profileSnapshot && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Users className="h-5 w-5 text-blue-600" />
+                        <span>Profile Snapshot</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <div className="flex justify-between"><span className="text-gray-500">Experience</span><span className="font-medium">{dashboardData.profileSnapshot.experience}</span></div>
+                      <div>
+                        <span className="text-gray-500">Goals</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(dashboardData.profileSnapshot.goals || []).slice(0,4).map((g) => (
+                            <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Interests</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(dashboardData.profileSnapshot.interests || []).slice(0,4).map((i) => (
+                            <Badge key={i} variant="outline" className="text-xs">{i}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 pt-2">
+                        <div className="text-center">
+                          <div className="text-xl font-bold">{dashboardData.profileSnapshot.level}</div>
+                          <div className="text-xs text-gray-500">Level</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold">{dashboardData.profileSnapshot.points}</div>
+                          <div className="text-xs text-gray-500">Points</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold">{dashboardData.profileSnapshot.streak}</div>
+                          <div className="text-xs text-gray-500">Streak</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
                 
                 {/* Current Projects */}
                 <Card>
@@ -584,8 +650,8 @@ export default function DynamicDashboard() {
                             Recommended Next Steps
                           </h4>
                           <ul className="space-y-1">
-                            {dashboardData.personalizedContent.nextSteps.slice(0, 3).map((step, index) => (
-                              <li key={index} className="text-sm text-gray-600 dark:text-gray-300 flex items-start">
+                            {dashboardData.personalizedContent.nextSteps.slice(0, 3).map((step) => (
+                              <li key={step} className="text-sm text-gray-600 dark:text-gray-300 flex items-start">
                                 <span className="text-blue-500 mr-2">•</span>
                                 {step}
                               </li>
@@ -678,8 +744,8 @@ export default function DynamicDashboard() {
                       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <h4 className="font-medium mb-2">Personalized Notes:</h4>
                         <ul className="space-y-1">
-                          {learningPath.adaptiveNotes.map((note, index) => (
-                            <li key={index} className="text-sm text-blue-700 dark:text-blue-300">
+                          {learningPath.adaptiveNotes.map((note) => (
+                            <li key={note} className="text-sm text-blue-700 dark:text-blue-300">
                               {note}
                             </li>
                           ))}

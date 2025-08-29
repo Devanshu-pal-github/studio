@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
+import { demoUsers } from '@/lib/demo-users';
 
-// Simple in-memory user store for demo purposes
-// In production, this would be replaced with a proper database
-const users = new Map();
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    if (users.has(email.toLowerCase())) {
+  if (demoUsers.has(email.toLowerCase())) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
@@ -56,10 +56,10 @@ export async function POST(request: NextRequest) {
       techStack: [],
     };
 
-    users.set(email.toLowerCase(), newUser);
+  demoUsers.set(email.toLowerCase(), newUser);
 
-    // Generate simple token (in production, use proper JWT)
-    const token = Buffer.from(JSON.stringify({ userId, email: email.toLowerCase(), name: name.trim() })).toString('base64');
+  // Generate JWT token and set cookie
+  const token = jwt.sign({ userId, email: email.toLowerCase(), name: name.trim() }, JWT_SECRET, { expiresIn: '7d' });
 
     // Return user data (without password)
     const userResponse = {
@@ -71,12 +71,22 @@ export async function POST(request: NextRequest) {
       completedOnboarding: false,
     };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Account created successfully',
       user: userResponse,
       token,
     });
+
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Signup error:', error);

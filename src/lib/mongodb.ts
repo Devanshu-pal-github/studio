@@ -4,7 +4,7 @@ if (typeof window !== 'undefined') {
 }
 
 import { MongoClient, Db } from 'mongodb';
-import { COLLECTIONS, DATABASE_INDEXES } from './database/schemas';
+import { DATABASE_INDEXES } from './database/schemas';
 import { requireServerEnvironment } from './server-utils';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -27,116 +27,101 @@ if (MONGODB_URI.includes('username:password') && !MONGODB_URI.includes('localhos
 let client: MongoClient;
 let db: Db;
 let isConnected = false;
+let connectPromise: Promise<Db> | null = null; // serialize connection attempts
 
 export async function connectToDatabase() {
   // Ensure this only runs on server side
   requireServerEnvironment();
-  
-  if (isConnected && client && db) {
-    return db;
-  }
+  // Return existing stable connection
+  if (isConnected && client && db) return db;
 
-  let currentUri = MONGODB_URI;
-  
-  try {
-    if (!client) {
-      // Configuration that avoids client-side encryption features
-      const clientOptions = {
-        maxPoolSize: 10,
-        serverSelectionTimeoutMS: 10000, // Increased timeout
-        socketTimeoutMS: 45000,
-        connectTimeoutMS: 10000,
-        family: 4,
-        // Explicitly disable auto-encryption and monitoring
-        monitorCommands: false,
-        // Don't use client-side field level encryption
-        autoEncryption: undefined,
-        // Add retry logic
-        retryWrites: true,
-        retryReads: true,
-      };
+  // If a connection is in-flight, await it
+  if (connectPromise) return await connectPromise;
 
-      // If using placeholder URI, try localhost instead
+  // Actual connect logic wrapped to ensure only one attempt at a time
+  connectPromise = (async (): Promise<Db> => {
+    let currentUri = MONGODB_URI;
+    try {
+      // Normalize placeholders -> localhost
       if (currentUri.includes('username:password') && currentUri.includes('cluster.mongodb.net')) {
         console.log('🔄 Placeholder MongoDB URI detected, trying localhost...');
         currentUri = 'mongodb://localhost:27017';
       }
 
+      // Connect primary (or localhost if placeholder handled above)
       console.log('🔌 Attempting to connect to MongoDB...');
+      const clientOptions = {
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        connectTimeoutMS: 10000,
+        family: 4,
+        monitorCommands: false,
+        autoEncryption: undefined,
+        retryWrites: true,
+        retryReads: true,
+      } as const;
+
       client = new MongoClient(currentUri, clientOptions);
       await client.connect();
-      
-      // Test the connection
       await client.db('admin').command({ ping: 1 });
       console.log('✅ Connected to MongoDB successfully');
-    }
-    
-    if (!db) {
+
       db = client.db(MONGODB_DB);
-      
-      // Create indexes for optimal performance
       await createIndexes(db);
-    }
-    
-    isConnected = true;
-    return db;
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    isConnected = false;
-    
-    // If we failed with the original URI and it's not localhost, try localhost as fallback
-    if (currentUri !== 'mongodb://localhost:27017' && !currentUri.includes('localhost')) {
-      console.log('🔄 Trying localhost as fallback...');
-      
-      // Reset client
-      if (client) {
+      isConnected = true;
+      return db;
+    } catch (error) {
+      console.error('❌ MongoDB connection error:', error);
+      isConnected = false;
+
+      // Attempt localhost fallback if not already using it
+      if (currentUri !== 'mongodb://localhost:27017' && !currentUri.includes('localhost')) {
+        console.log('🔄 Trying localhost as fallback...');
         try {
-          await client.close();
-        } catch (closeError) {
-          console.error('Error closing MongoDB client:', closeError);
+          if (client) {
+            try { await client.close(); } catch {}
+          }
+          const localClientOptions = {
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            connectTimeoutMS: 5000,
+            family: 4,
+            monitorCommands: false,
+            autoEncryption: undefined,
+          } as const;
+
+          client = new MongoClient('mongodb://localhost:27017', localClientOptions);
+          await client.connect();
+          await client.db('admin').command({ ping: 1 });
+
+          db = client.db(MONGODB_DB);
+          await createIndexes(db);
+          isConnected = true;
+          console.log('✅ Connected to local MongoDB successfully');
+          return db;
+        } catch (localError) {
+          console.error('❌ Local MongoDB connection also failed:', localError);
         }
-        client = null as any;
-        db = null as any;
       }
-      
-      try {
-        const localClientOptions = {
-          maxPoolSize: 10,
-          serverSelectionTimeoutMS: 5000,
-          socketTimeoutMS: 45000,
-          connectTimeoutMS: 5000,
-          family: 4,
-          monitorCommands: false,
-          autoEncryption: undefined,
-        };
-        
-        client = new MongoClient('mongodb://localhost:27017', localClientOptions);
-        await client.connect();
-        await client.db('admin').command({ ping: 1 });
-        
-        db = client.db(MONGODB_DB);
-        await createIndexes(db);
-        
-        isConnected = true;
-        console.log('✅ Connected to local MongoDB successfully');
-        return db;
-      } catch (localError) {
-        console.error('❌ Local MongoDB connection also failed:', localError);
-      }
-    }
-    
-    // Reset client on connection failure
-    if (client) {
-      try {
-        await client.close();
-      } catch (closeError) {
-        console.error('Error closing MongoDB client:', closeError);
+
+      // If we reach here, we could not connect
+      if (client) {
+        try { await client.close(); } catch {}
       }
       client = null as any;
       db = null as any;
+      throw new Error(`Failed to connect to MongoDB: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
-    throw new Error(`Failed to connect to MongoDB: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  })();
+
+  try {
+    const database = await connectPromise;
+    return database;
+  } finally {
+    // Allow future reconnects if needed
+    connectPromise = null;
   }
 }
 
@@ -152,14 +137,26 @@ export async function getDatabase() {
 
 async function createIndexes(database: Db) {
   try {
-    for (const [collectionName, indexes] of Object.entries(DATABASE_INDEXES)) {
+    const entries = Object.entries(DATABASE_INDEXES as unknown as Record<string, ReadonlyArray<unknown>>);
+    for (const [collectionName, indexes] of entries) {
       const collection = database.collection(collectionName);
-      
-      for (const index of indexes) {
+  for (const index of indexes) {
         try {
-          await collection.createIndex(index);
+          if (Array.isArray(index)) {
+            const arr = index as unknown[];
+            if (arr.length === 2) {
+              const spec = arr[0] as Record<string, any>;
+              const options = (arr[1] as Record<string, any>) || {};
+              await collection.createIndex(spec, options);
+            } else {
+              const spec = arr[0] as Record<string, any>;
+              await collection.createIndex(spec);
+            }
+          } else {
+            const spec: Record<string, any> = index as Record<string, any>;
+            await collection.createIndex(spec);
+          }
         } catch (error) {
-          // Index might already exist, which is fine
           if (error instanceof Error && !error.message.includes('already exists')) {
             console.warn(`Warning: Could not create index for ${collectionName}:`, error.message);
           }

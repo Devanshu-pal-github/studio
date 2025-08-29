@@ -63,6 +63,18 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    // Log activity: signin
+    try {
+      await db.collection(COLLECTIONS.USER_ACTIVITIES).insertOne({
+        id: `activity-${user._id.toString()}-${Date.now()}`,
+        userId: user._id.toString(),
+        type: 'resource_viewed',
+        timestamp: new Date(),
+        description: 'User signed in',
+        metadata: { source: 'api/auth/signin' }
+      });
+    } catch {}
+
     // Return user data (without password)
     const userResponse = {
       _id: user._id.toString(),
@@ -79,12 +91,23 @@ export async function POST(request: NextRequest) {
       techStack: user.techStack,
     };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Login successful',
       user: userResponse,
       token,
     });
+
+    // Set httpOnly cookie for middleware
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Login error:', error);

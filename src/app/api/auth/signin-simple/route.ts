@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
+import { demoUsers } from '@/lib/demo-users';
 
-// Simple in-memory user store for demo purposes
-// This should match the store in signup-simple
-const users = new Map();
-
-// Add a demo user for testing
-users.set('demo@test.com', {
-  _id: 'demo123',
-  name: 'Demo User',
-  email: 'demo@test.com',
-  password: 'demo123', // In production, this would be hashed
-  createdAt: new Date(),
-  emailVerified: true,
-  completedOnboarding: false,
-  experienceLevel: undefined,
-  interests: [],
-  goals: [],
-  learningStyle: undefined,
-  techStack: [],
-});
+// Use shared demoUsers store
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user
-    const user = users.get(email.toLowerCase());
+  const user = demoUsers.get(email.toLowerCase());
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -49,12 +33,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate simple token (in production, use proper JWT)
-    const token = Buffer.from(JSON.stringify({ 
-      userId: user._id, 
-      email: user.email, 
-      name: user.name 
-    })).toString('base64');
+    // Generate JWT token to align with middleware verification
+    const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        name: user.name,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     // Return user data (without password)
     const userResponse = {
@@ -72,12 +61,21 @@ export async function POST(request: NextRequest) {
       techStack: user.techStack,
     };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Login successful',
       user: userResponse,
       token,
     });
+    // Set httpOnly cookie for middleware
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    return response;
 
   } catch (error) {
     console.error('Login error:', error);

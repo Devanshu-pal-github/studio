@@ -8,6 +8,7 @@ import { User } from '@/lib/client-auth';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  verifying: boolean;
   login: (user: User, token: string) => Promise<void>;
   logout: () => Promise<void>;
   verifyToken: () => Promise<boolean>;
@@ -20,6 +21,7 @@ const PROTECTED_ROUTES = ['/dashboard', '/profile', '/onboarding'];
 const AuthContext = createContext<AuthContextType>({ 
   user: null, 
   loading: true,
+  verifying: true,
   login: async () => {},
   logout: async () => {},
   verifyToken: async () => false
@@ -28,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -48,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const token = localStorage.getItem('token');
       if (!token) return false;
 
-      const response = await fetch('/api/auth/verify-simple', {
+  const response = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
+  setUser(data.user);
         return true;
       } else {
         // Token is invalid, clear it
@@ -76,31 +79,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Load user and verify token on app start
+  // Load user and verify token on app start (server-verified before redirecting)
   useEffect(() => {
     const initializeAuth = async () => {
+      setVerifying(true);
       const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
-      
-      if (token && userData) {
-        try {
-          const parsedUser = JSON.parse(userData);
-          setUser(parsedUser);
-          
-          // Verify token with server
-          const isValid = await verifyToken();
-          if (!isValid) {
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('Failed to parse stored user data:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-        }
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        setVerifying(false);
+        return;
       }
-      
+
+      // Always verify with server first to ensure DB-backed state
+      const isValid = await verifyToken();
+      if (!isValid) {
+        setUser(null);
+      }
       setLoading(false);
+      setVerifying(false);
     };
 
     initializeAuth();
@@ -116,19 +113,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user && PROTECTED_ROUTES.includes(pathname)) {
       console.log('❌ Redirecting to login for protected route:', pathname);
       router.push('/login');
-      return;
     }
+
+    // Helper: wait for cookie then navigate to avoid middleware bounce
+    const ensureCookieThenRedirect = (target: string, tries = 0) => {
+      const hasCookie = typeof document !== 'undefined' && document.cookie.includes('token=');
+      if (hasCookie || tries >= 20) {
+        router.replace(target);
+        return;
+      }
+      setTimeout(() => ensureCookieThenRedirect(target, tries + 1), 100);
+    };
 
     // If user is authenticated and on public auth pages, redirect appropriately
     if (user && (pathname === '/login' || pathname === '/signup')) {
       if (!user.completedOnboarding) {
         console.log('📝 Redirecting authenticated user to onboarding');
-        router.push('/onboarding');
+        ensureCookieThenRedirect('/onboarding');
       } else {
         console.log('📊 Redirecting authenticated user to dashboard');
-        router.push('/dashboard');
+        ensureCookieThenRedirect('/dashboard');
       }
-      return;
+    }
+
+    // If on landing while logged in: route based on onboarding status
+    if (user && (pathname === '/' || pathname === '/landing')) {
+      ensureCookieThenRedirect(user.completedOnboarding ? '/dashboard' : '/onboarding');
     }
   }, [user, loading, pathname, router]);
 
@@ -174,14 +184,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const contextValue = useMemo(() => ({
     user,
     loading,
+    verifying,
     login,
     logout,
     verifyToken
-  }), [user, loading]);
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">Loading...</div>;
-  }
+  }), [user, loading, verifying]);
 
   return (
     <AuthContext.Provider value={contextValue}>

@@ -9,9 +9,7 @@ import {
   Home, 
   User, 
   LogOut, 
-  Settings,
   BookOpen,
-  MessageCircle,
   Sun,
   Moon
 } from 'lucide-react';
@@ -96,27 +94,33 @@ export default function NavigationBar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <Link href="/dashboard" className="flex items-center space-x-3">
+          <button onClick={() => router.push(user?.completedOnboarding ? '/dashboard' : '/onboarding')} className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-teal-600 rounded-xl flex items-center justify-center">
               <BookOpen className="h-6 w-6 text-white" />
             </div>
             <span className="font-bold text-xl text-gray-900 dark:text-white">StudoAI</span>
-          </Link>
+          </button>
           
           <div className="flex items-center space-x-6">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
-                <Home className="h-4 w-4" />
-                <span>Dashboard</span>
-              </Button>
-            </Link>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => router.push(user?.completedOnboarding ? '/dashboard' : '/onboarding')}
+              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            >
+              <Home className="h-4 w-4" />
+              <span>Dashboard</span>
+            </Button>
             
-            <Link href="/profile">
-              <Button variant="ghost" size="sm" className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
-                <User className="h-4 w-4" />
-                <span>Profile</span>
-              </Button>
-            </Link>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => router.push('/profile')}
+              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            >
+              <User className="h-4 w-4" />
+              <span>Profile</span>
+            </Button>
             
             <Button
               variant="ghost"
@@ -128,25 +132,25 @@ export default function NavigationBar() {
             </Button>
             
             <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
+              <button type="button" onClick={() => router.push('/profile')} className="flex items-center space-x-2 hover:opacity-90">
                 {user.photoURL ? (
                   <img 
                     src={user.photoURL} 
-                    alt={user.displayName || 'User'} 
+                    alt={user.name || 'User'} 
                     className="w-8 h-8 rounded-full border-2 border-gray-200"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full border-2 border-gray-200 bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold">
-                    {(user.name || user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name || user.displayName || 'User'}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name || 'User'}</p>
                   <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                     Level 1
                   </Badge>
                 </div>
-              </div>
+              </button>
               
               <Button 
                 variant="ghost" 

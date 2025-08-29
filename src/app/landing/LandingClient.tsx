@@ -135,7 +135,7 @@ const interactiveFeatures = [
 ];
 
 export default function LandingClient() {
-  const { user } = useAuth();
+  const { user, verifying } = useAuth();
   const { scrollY } = useScroll();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
@@ -155,6 +155,16 @@ export default function LandingClient() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 font-inter">
+      {verifying && (
+        <div className="fixed top-0 inset-x-0 z-50">
+          <div className="mx-auto max-w-7xl px-4 py-2">
+            <div className="rounded-xl border border-blue-200/60 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 backdrop-blur-sm flex items-center justify-center gap-2 text-sm">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+              Loading your status…
+            </div>
+          </div>
+        </div>
+      )}
       {/* Hero Section */}
       <section className="relative overflow-hidden py-20 lg:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

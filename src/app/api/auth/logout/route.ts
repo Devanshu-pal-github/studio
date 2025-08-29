@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import { COLLECTIONS } from '@/lib/database/schemas';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
@@ -8,8 +7,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change
 export async function POST(request: NextRequest) {
   try {
     // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = request.headers.get('authorization');
+  if (!(authHeader?.startsWith('Bearer '))) {
       return NextResponse.json(
         { error: 'No token provided' },
         { status: 401 }
@@ -37,10 +36,19 @@ export async function POST(request: NextRequest) {
       expiresAt: new Date(decoded.exp * 1000) // JWT expiration time
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Logged out successfully'
     });
+    // Clear auth cookie
+    response.cookies.set('token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+    });
+    return response;
 
   } catch (error: any) {
     console.error('Logout error:', error);

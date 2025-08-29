@@ -4,6 +4,9 @@ import { COLLECTIONS } from '@/lib/database/schemas';
 import { ObjectId } from 'mongodb';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
 
 // Initialize Gemini AI
 let genAI: GoogleGenerativeAI | null = null;
@@ -54,15 +57,15 @@ function createEmbedding(text: string): string {
 // Intelligent fallback profile extraction
 function extractUserProfileFallback(history: Message[]): UserProfile {
   const profile: UserProfile = {
-    name: null,
-    experienceLevel: null,
+    name: undefined,
+    experienceLevel: undefined,
     interests: [],
     goals: [],
-    learningStyle: null,
+    learningStyle: undefined,
     techStack: [],
-    timeAvailability: null,
-    motivation: null,
-    background: null,
+    timeAvailability: undefined,
+    motivation: undefined,
+    background: undefined,
     challenges: [],
     strengths: [],
     currentStage: 'introduction',
@@ -75,8 +78,8 @@ function extractUserProfileFallback(history: Message[]): UserProfile {
       
       // Extract name
       if (content.includes('name') || content.includes('call me') || content.includes('i\'m')) {
-        const nameMatch = content.match(/(?:name|call me|i'm)\s+(?:is\s+)?([a-zA-Z]+)/);
-        if (nameMatch) profile.name = nameMatch[1];
+    const nameMatch = /(?:name|call me|i'm)\s+(?:is\s+)?([a-zA-Z]+)/.exec(content);
+    if (nameMatch && nameMatch[1]) profile.name = nameMatch[1];
       }
 
       // Extract experience level
@@ -90,36 +93,36 @@ function extractUserProfileFallback(history: Message[]): UserProfile {
 
       // Extract goals
       if (content.includes('job') || content.includes('career') || content.includes('employment')) {
-        profile.goals.push('career_change');
+  (profile.goals ||= []).push('career_change');
       }
       if (content.includes('project') || content.includes('build') || content.includes('create')) {
-        profile.goals.push('personal_projects');
+  (profile.goals ||= []).push('personal_projects');
       }
       if (content.includes('learn') || content.includes('skill') || content.includes('improve')) {
-        profile.goals.push('skill_development');
+  (profile.goals ||= []).push('skill_development');
       }
       if (content.includes('hobby') || content.includes('fun') || content.includes('interest')) {
-        profile.goals.push('hobby');
+  (profile.goals ||= []).push('hobby');
       }
 
       // Extract interests
       if (content.includes('web') || content.includes('frontend') || content.includes('react') || content.includes('website')) {
-        profile.interests.push('web_development');
+  (profile.interests ||= []).push('web_development');
       }
       if (content.includes('mobile') || content.includes('app') || content.includes('ios') || content.includes('android')) {
-        profile.interests.push('mobile_development');
+  (profile.interests ||= []).push('mobile_development');
       }
       if (content.includes('ai') || content.includes('machine learning') || content.includes('ml')) {
-        profile.interests.push('ai_ml');
+  (profile.interests ||= []).push('ai_ml');
       }
       if (content.includes('data') || content.includes('analytics') || content.includes('statistics')) {
-        profile.interests.push('data_science');
+  (profile.interests ||= []).push('data_science');
       }
       if (content.includes('backend') || content.includes('server') || content.includes('api')) {
-        profile.interests.push('backend_development');
+  (profile.interests ||= []).push('backend_development');
       }
       if (content.includes('game') || content.includes('gaming') || content.includes('unity')) {
-        profile.interests.push('game_development');
+  (profile.interests ||= []).push('game_development');
       }
 
       // Extract learning style
@@ -167,7 +170,7 @@ function extractUserProfileFallback(history: Message[]): UserProfile {
       
       for (const tech of techKeywords) {
         if (content.includes(tech)) {
-          profile.techStack.push(tech);
+          (profile.techStack ||= []).push(tech);
         }
       }
     }
@@ -177,12 +180,12 @@ function extractUserProfileFallback(history: Message[]): UserProfile {
   const messageCount = history.length;
   if (messageCount <= 2) profile.currentStage = 'introduction';
   else if (!profile.experienceLevel) profile.currentStage = 'experience';
-  else if (profile.goals.length === 0) profile.currentStage = 'goals';
-  else if (profile.interests.length === 0) profile.currentStage = 'interests';
+  else if ((profile.goals || []).length === 0) profile.currentStage = 'goals';
+  else if ((profile.interests || []).length === 0) profile.currentStage = 'interests';
   else if (!profile.learningStyle) profile.currentStage = 'learning_style';
   else if (!profile.motivation) profile.currentStage = 'motivation';
   else if (!profile.background) profile.currentStage = 'background';
-  else if (profile.techStack.length === 0) profile.currentStage = 'tech_stack';
+  else if ((profile.techStack || []).length === 0) profile.currentStage = 'tech_stack';
   else if (!profile.timeAvailability) profile.currentStage = 'availability';
   else profile.currentStage = 'completion';
 
@@ -494,13 +497,29 @@ export async function POST(req: NextRequest) {
   try {
     const { history, userId } = await req.json();
 
+    // Require Bearer token and ensure it matches provided userId
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+    }
+    const token = authHeader.substring(7);
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    if (!decoded?.userId || decoded.userId !== userId) {
+      return NextResponse.json({ error: 'Token/user mismatch' }, { status: 401 });
+    }
+
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const db = await connectToDatabase();
+  const db = await connectToDatabase();
     
-    // Get user data
+  // Get user data
     const user = await db.collection(COLLECTIONS.USERS).findOne(
       { _id: new ObjectId(userId) },
       { projection: { password: 0 } }
@@ -522,15 +541,30 @@ export async function POST(req: NextRequest) {
     const nextQuestion = await determineNextQuestion(history, userProfile);
     
     // Store conversation with embeddings
-    await storeConversationWithEmbeddings(userId, history, nextQuestion, userProfile);
+  await storeConversationWithEmbeddings(userId, history, nextQuestion, userProfile);
+
+    // Log activity: onboarding interaction
+    try {
+      await db.collection(COLLECTIONS.USER_ACTIVITIES).insertOne({
+        id: `activity-${userId}-${Date.now()}`,
+        userId,
+        type: 'ai_chat',
+        timestamp: new Date(),
+        description: 'Onboarding interaction',
+        metadata: { stage: userProfile.currentStage, length: history.length }
+      });
+    } catch {}
 
     console.log('✅ Onboarding processed successfully');
     console.log('📝 Next question generated');
     console.log('🔍 Current stage:', userProfile.currentStage);
     console.log('🔄 Using fallback:', isRateLimited);
 
+    // If the currentStage is completion and enough user data is present, append a DONE marker
+    const isComplete = (userProfile.currentStage === 'completion');
+
     return NextResponse.json({ 
-      message: nextQuestion,
+      message: isComplete ? `${nextQuestion}\n\n[DONE]` : nextQuestion,
       userProfile,
       currentStage: userProfile.currentStage,
       completedStages: userProfile.completedStages || [],

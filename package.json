@@ -9,8 +9,10 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+  "lint": "next lint",
+  "typecheck": "tsc --noEmit",
+  "test:e2e": "playwright test",
+  "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@genkit-ai/flow": "^0.5.17",
@@ -70,6 +72,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+  "@playwright/test": "^1.48.2",
     "@tailwindcss/typography": "^0.5.13",
     "@types/node": "^20",
     "@types/react": "^18",

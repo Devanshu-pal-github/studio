@@ -1,5 +1,5 @@
 // Database schemas and types for MongoDB collections
-import { ObjectId } from 'mongodb';
+// import { ObjectId } from 'mongodb';
 
 // User Collection Schema
 export interface User {
@@ -249,35 +249,36 @@ export const COLLECTIONS = {
 
 // Database indexes to create for optimal performance
 export const DATABASE_INDEXES = {
+  // Use [spec, options] tuples where options are required
   [COLLECTIONS.USERS]: [
-    { email: 1 }, // unique index
-    { resetPasswordToken: 1 },
-    { createdAt: -1 }
+    [{ email: 1 }, { unique: true }],
+    [{ resetPasswordToken: 1 }, {}],
+    [{ createdAt: -1 }, {}]
   ],
   [COLLECTIONS.USER_PROGRESS]: [
-    { userId: 1 }, // unique index
-    { totalPoints: -1 },
-    { level: -1 }
+    [{ userId: 1 }, { unique: true }],
+    [{ totalPoints: -1 }, {}],
+    [{ level: -1 }, {}]
   ],
   [COLLECTIONS.USER_ACTIVITIES]: [
-    { userId: 1, timestamp: -1 },
-    { type: 1 },
-    { 'metadata.projectId': 1 }
+    [{ userId: 1, timestamp: -1 }, {}],
+    [{ type: 1 }, {}],
+    [{ 'metadata.projectId': 1 }, {}]
   ],
   [COLLECTIONS.PROJECT_PROGRESS]: [
-    { userId: 1 },
-    { projectId: 1 },
-    { status: 1 },
-    { startedAt: -1 }
+    [{ userId: 1 }, {}],
+    [{ projectId: 1 }, {}],
+    [{ status: 1 }, {}],
+    [{ startedAt: -1 }, {}]
   ],
   [COLLECTIONS.CHAT_HISTORY]: [
-    { userId: 1, createdAt: -1 },
-    { sessionId: 1 }
+    [{ userId: 1, createdAt: -1 }, {}],
+    [{ sessionId: 1 }, {}]
   ],
   [COLLECTIONS.AI_RECOMMENDATIONS]: [
-    { userId: 1, status: 1 },
-    { type: 1 },
-    { priority: -1 }
+    [{ userId: 1, status: 1 }, {}],
+    [{ type: 1 }, {}],
+    [{ priority: -1 }, {}]
   ]
 } as const;
 

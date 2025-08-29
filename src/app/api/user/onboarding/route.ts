@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/database/schemas';
+import { ObjectId } from 'mongodb';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
@@ -25,8 +26,9 @@ export async function GET(request: NextRequest) {
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     
-    const db = await connectToDatabase();
-    const user = await db.collection(COLLECTIONS.USERS).findOne({ _id: decoded.userId });
+  const db = await connectToDatabase();
+  const userObjectId = new ObjectId(decoded.userId);
+  const user = await db.collection(COLLECTIONS.USERS).findOne({ _id: userObjectId });
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -76,7 +78,7 @@ export async function POST(request: NextRequest) {
     };
 
     const result = await db.collection(COLLECTIONS.USERS).updateOne(
-      { _id: decoded.userId },
+      { _id: new ObjectId(decoded.userId) },
       { $set: updateData },
       { upsert: false }
     );

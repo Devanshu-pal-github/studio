@@ -70,7 +70,7 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/signup-simple', {
+  const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -87,14 +87,9 @@ export default function SignupPage() {
       if (data.success) {
         setSuccess('Account created successfully! Redirecting...');
         
-        // Store token and update auth context
-        localStorage.setItem('token', data.token);
-        authLogin(data.user, data.token);
-        
-        // Redirect to onboarding
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 1500);
+  // Store token and update auth context; AuthContext will redirect
+  localStorage.setItem('token', data.token);
+  authLogin(data.user, data.token);
       } else {
         setError(data.error || 'Failed to create account');
       }

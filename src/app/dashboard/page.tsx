@@ -13,6 +13,9 @@ export default function DashboardPage() {
     if (!loading && !user) {
       // If not authenticated, redirect to landing page
       router.push('/');
+    } else if (!loading && user && !user.completedOnboarding) {
+      // If authenticated but onboarding not complete, redirect to onboarding
+      router.push('/onboarding');
     }
   }, [user, loading, router]);
 

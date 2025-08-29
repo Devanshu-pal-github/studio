@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyToken } from '@/lib/auth';
 
-// Simple demo onboarding questions
+// Simple demo onboarding questions (will cap at MAX_QUESTIONS)
+const MAX_QUESTIONS = 10;
 const ONBOARDING_QUESTIONS = [
   "Hi! I'm your AI learning mentor. What's your name and what brings you to Project Compass today?",
   "Great to meet you! What's your current experience level with programming and technology?",
@@ -12,12 +14,29 @@ const ONBOARDING_QUESTIONS = [
 
 export async function POST(request: NextRequest) {
   try {
+    // Require auth via Bearer token
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+    }
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const { history } = await request.json();
     
     // Count user messages to determine which question to ask next
     const userMessages = history.filter((msg: any) => msg.role === 'user').length;
+    if (userMessages >= MAX_QUESTIONS) {
+      return NextResponse.json({
+        response: 'Thanks! I have enough to personalize your journey. [DONE]',
+        completed: true
+      });
+    }
     
-    if (userMessages >= ONBOARDING_QUESTIONS.length - 1) {
+  if (userMessages >= ONBOARDING_QUESTIONS.length - 1 || userMessages >= MAX_QUESTIONS - 1) {
       // Onboarding complete
       return NextResponse.json({
         response: ONBOARDING_QUESTIONS[ONBOARDING_QUESTIONS.length - 1] + " [DONE]",
@@ -26,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Return next question
-    const nextQuestion = ONBOARDING_QUESTIONS[userMessages] || ONBOARDING_QUESTIONS[0];
+  const nextQuestion = ONBOARDING_QUESTIONS[userMessages] || ONBOARDING_QUESTIONS[ONBOARDING_QUESTIONS.length - 1];
     
     return NextResponse.json({
       response: nextQuestion,
