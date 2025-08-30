@@ -4,6 +4,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken } from '@/lib/auth';
 import { vectorStore, LearningContext } from '@/lib/vectorStore';
 import { ObjectId } from 'mongodb';
+import { COLLECTIONS } from '@/lib/database/schemas';
 
 interface Message {
   role: 'user' | 'model';
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
         let enhancedProfile: any = null;
         try {
             const db = await connectToDatabase();
-            const latest = await db.collection('onboarding_conversations')
+            const latest = await db.collection(COLLECTIONS.ONBOARDING_CONVERSATIONS)
               .find({ userId: new ObjectId(userId) })
               .sort({ createdAt: -1 })
               .limit(1)
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
             if (Array.isArray(enhancedProfile.techStack)) userFieldUpdates.techStack = enhancedProfile.techStack;
         }
 
-        const result = await db.collection('users').updateOne(
+    const result = await db.collection(COLLECTIONS.USERS).updateOne(
             { _id: userObjectId },
             { $set: userFieldUpdates }
         );
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
         }
         // Log activity: onboarding completed
         try {
-            await db.collection('activities').insertOne({
+            await db.collection(COLLECTIONS.USER_ACTIVITIES).insertOne({
                 id: `activity-${userId}-${Date.now()}`,
                 userId: userId,
                 type: 'project_complete',

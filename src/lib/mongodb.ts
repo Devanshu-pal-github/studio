@@ -6,23 +6,16 @@ if (typeof window !== 'undefined') {
 import { MongoClient, Db } from 'mongodb';
 import { DATABASE_INDEXES } from './database/schemas';
 import { requireServerEnvironment } from './server-utils';
+import { getMongoURI, getMongoDBName } from './config';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
-const MONGODB_DB = process.env.MONGODB_DB || 'studioai';
+const MONGODB_URI = getMongoURI();
+const MONGODB_DB = getMongoDBName(MONGODB_URI);
 
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
-// Check if using placeholder values and provide helpful error
-if (MONGODB_URI.includes('username:password') && !MONGODB_URI.includes('localhost')) {
-  console.warn('⚠️  MongoDB URI contains placeholder values. Please update .env.local with your actual MongoDB connection string.');
-  console.warn('📖 Instructions:');
-  console.warn('   1. Go to https://cloud.mongodb.com/');
-  console.warn('   2. Create a cluster and get your connection string');
-  console.warn('   3. Update MONGODB_URI in .env.local');
-  console.warn('   4. For now, falling back to local MongoDB...');
-}
+// No placeholder normalization here; rely on provided env.
 
 let client: MongoClient;
 let db: Db;
@@ -40,14 +33,8 @@ export async function connectToDatabase() {
 
   // Actual connect logic wrapped to ensure only one attempt at a time
   connectPromise = (async (): Promise<Db> => {
-    let currentUri = MONGODB_URI;
+  let currentUri = MONGODB_URI;
     try {
-      // Normalize placeholders -> localhost
-      if (currentUri.includes('username:password') && currentUri.includes('cluster.mongodb.net')) {
-        console.log('🔄 Placeholder MongoDB URI detected, trying localhost...');
-        currentUri = 'mongodb://localhost:27017';
-      }
-
       // Connect primary (or localhost if placeholder handled above)
       console.log('🔌 Attempting to connect to MongoDB...');
       const clientOptions = {
@@ -71,40 +58,9 @@ export async function connectToDatabase() {
       await createIndexes(db);
       isConnected = true;
       return db;
-    } catch (error) {
+  } catch (error) {
       console.error('❌ MongoDB connection error:', error);
       isConnected = false;
-
-      // Attempt localhost fallback if not already using it
-      if (currentUri !== 'mongodb://localhost:27017' && !currentUri.includes('localhost')) {
-        console.log('🔄 Trying localhost as fallback...');
-        try {
-          if (client) {
-            try { await client.close(); } catch {}
-          }
-          const localClientOptions = {
-            maxPoolSize: 10,
-            serverSelectionTimeoutMS: 5000,
-            socketTimeoutMS: 45000,
-            connectTimeoutMS: 5000,
-            family: 4,
-            monitorCommands: false,
-            autoEncryption: undefined,
-          } as const;
-
-          client = new MongoClient('mongodb://localhost:27017', localClientOptions);
-          await client.connect();
-          await client.db('admin').command({ ping: 1 });
-
-          db = client.db(MONGODB_DB);
-          await createIndexes(db);
-          isConnected = true;
-          console.log('✅ Connected to local MongoDB successfully');
-          return db;
-        } catch (localError) {
-          console.error('❌ Local MongoDB connection also failed:', localError);
-        }
-      }
 
       // If we reach here, we could not connect
       if (client) {

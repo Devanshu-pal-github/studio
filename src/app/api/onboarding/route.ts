@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { enhancedVectorStore } from '@/lib/enhanced-vector-store';
 import { advancedPromptingEngine } from '@/lib/advanced-prompting';
 import { ObjectId } from 'mongodb';
+import { COLLECTIONS } from '@/lib/database/schemas';
 
 interface Message {
     role: 'user' | 'model';
@@ -95,7 +96,7 @@ async function storeOnboardingContext(userId: string, history: Message[]) {
 
         // Store complete conversation flow in database
         const db = await connectToDatabase();
-        await db.collection('onboarding_conversations').updateOne(
+    await db.collection(COLLECTIONS.ONBOARDING_CONVERSATIONS).updateOne(
             { userId },
             {
                 $set: {
@@ -283,7 +284,7 @@ async function completeOnboarding(userId: string, history: Message[]) {
         const learningContext = await extractComprehensiveLearningContext(history);
         
         // Update user profile
-        await db.collection('users').updateOne(
+    await db.collection(COLLECTIONS.USERS).updateOne(
             { _id: userObjectId },
             {
                 $set: {

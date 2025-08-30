@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import jwt from 'jsonwebtoken';
+import { getJWTSecret } from '@/lib/config';
+import { COLLECTIONS } from '@/lib/database/schemas';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+const JWT_SECRET = getJWTSecret();
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     // Store token in blacklist (optional - for immediate invalidation)
     const db = await connectToDatabase();
-    await db.collection('token_blacklist').insertOne({
+  await db.collection(COLLECTIONS.TOKEN_BLACKLIST ?? 'token_blacklist').insertOne({
       token,
       userId: decoded.userId,
       blacklistedAt: new Date(),

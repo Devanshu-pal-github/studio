@@ -3,8 +3,8 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/database/schemas';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+import { getJWTSecret } from '@/lib/config';
+const JWT_SECRET = getJWTSecret();
 
 export async function POST(request: NextRequest) {
   try {

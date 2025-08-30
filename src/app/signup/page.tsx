@@ -25,7 +25,7 @@ export default function SignupPage() {
   const [success, setSuccess] = useState('');
   
   const router = useRouter();
-  const { login: authLogin, user } = useAuth();
+  const { login: authLogin, user, verifying } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -45,6 +45,16 @@ export default function SignupPage() {
       }
     }
   }, [user, router]);
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="rounded-xl border border-blue-200/60 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 px-4 py-2">
+          Checking your status…
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

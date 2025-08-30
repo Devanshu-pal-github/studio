@@ -11,6 +11,7 @@ import { Eye, EyeOff, Mail, Lock, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+// (no-op) ensure single import of Alert components
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -23,7 +24,7 @@ export default function LoginPage() {
   const [success, setSuccess] = useState('');
   
   const router = useRouter();
-  const { login: authLogin, user } = useAuth();
+  const { login: authLogin, user, verifying } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -102,6 +103,17 @@ export default function LoginPage() {
       [e.target.name]: e.target.value,
     }));
   };
+
+  // Avoid UI flash while verifying
+  if (verifying) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="rounded-xl border border-blue-200/60 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 px-4 py-2">
+          Checking your status…
+        </div>
+      </div>
+    );
+  }
 
   // Don't render the form if user is already logged in
   if (user) {

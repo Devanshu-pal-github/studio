@@ -83,6 +83,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       setVerifying(true);
+      // Safety timeout to avoid being stuck in verifying UI
+      const verifyTimeout = setTimeout(() => setVerifying(false), 5000);
       const token = localStorage.getItem('token');
       if (!token) {
         setUser(null);
@@ -96,8 +98,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!isValid) {
         setUser(null);
       }
-      setLoading(false);
-      setVerifying(false);
+  setLoading(false);
+  setVerifying(false);
+  clearTimeout(verifyTimeout);
     };
 
     initializeAuth();

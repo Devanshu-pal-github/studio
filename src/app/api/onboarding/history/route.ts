@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import jwt from 'jsonwebtoken';
+import { getJWTSecret } from '@/lib/config';
+import { COLLECTIONS } from '@/lib/database/schemas';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+const JWT_SECRET = getJWTSecret();
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
     const userId = decoded.userId as string;
 
     const db = await connectToDatabase();
-    const conversations = await db.collection('onboarding_conversations')
+  const conversations = await db.collection(COLLECTIONS.ONBOARDING_CONVERSATIONS)
       .find({ userId: new ObjectId(userId) })
       .sort({ createdAt: -1 })
       .limit(20)

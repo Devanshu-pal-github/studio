@@ -3,8 +3,9 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/database/schemas';
 import { ObjectId } from 'mongodb';
 import jwt from 'jsonwebtoken';
+import { getJWTSecret } from '@/lib/config';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
+const JWT_SECRET = getJWTSecret();
 
 // Helper function to verify JWT token
 function verifyToken(token: string) {

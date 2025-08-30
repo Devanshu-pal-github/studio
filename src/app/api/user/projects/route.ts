@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { COLLECTIONS } from '@/lib/database/schemas';
 
 export async function GET(req: NextRequest) {
     try {
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
         const userObjectId = typeof decoded.userId === 'string' ? new ObjectId(decoded.userId) : decoded.userId;
         
         // Get user's learning context and onboarding data
-        const user = await db.collection('users').findOne({ _id: userObjectId });
+    const user = await db.collection(COLLECTIONS.USERS).findOne({ _id: userObjectId });
 
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Check if we already have generated projects for this user
-        const existingProjects = await db.collection('user_projects').find({ userId: decoded.userId }).toArray();
+    const existingProjects = await db.collection(COLLECTIONS.USER_PROJECTS).find({ userId: decoded.userId }).toArray();
 
         if (existingProjects.length > 0) {
             return NextResponse.json({
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
                 updatedAt: new Date()
             }));
 
-            const insertResult = await db.collection('user_projects').insertMany(projectsWithMetadata);
+            const insertResult = await db.collection(COLLECTIONS.USER_PROJECTS).insertMany(projectsWithMetadata);
             
             return NextResponse.json({
                 success: true,
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
                 updatedAt: new Date()
             }));
 
-            const insertResult = await db.collection('user_projects').insertMany(projectsWithMetadata);
+            const insertResult = await db.collection(COLLECTIONS.USER_PROJECTS).insertMany(projectsWithMetadata);
             
             return NextResponse.json({
                 success: true,
@@ -130,14 +131,14 @@ export async function POST(req: NextRequest) {
         const userObjectId = typeof decoded.userId === 'string' ? new ObjectId(decoded.userId) : decoded.userId;
         
         // Check if project already exists for user
-        const existingProject = await db.collection('user_projects').findOne({ 
+    const existingProject = await db.collection(COLLECTIONS.USER_PROJECTS).findOne({ 
             userId: decoded.userId, 
             _id: new ObjectId(projectId) 
         });
 
         if (existingProject) {
             // Update existing project status
-            const updateResult = await db.collection('user_projects').updateOne(
+            const updateResult = await db.collection(COLLECTIONS.USER_PROJECTS).updateOne(
                 { _id: new ObjectId(projectId), userId: decoded.userId },
                 { 
                     $set: { 
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
                 updatedAt: new Date()
             };
 
-            await db.collection('user_projects').insertOne(projectData);
+            await db.collection(COLLECTIONS.USER_PROJECTS).insertOne(projectData);
         }
 
         return NextResponse.json({ 

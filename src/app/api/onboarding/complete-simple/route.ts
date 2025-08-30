@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { COLLECTIONS } from '@/lib/database/schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,11 +22,11 @@ export async function POST(request: NextRequest) {
             onboardingHistory: { $each: onboardingHistory.map((m: any) => ({ ...m, timestamp: new Date() })) }
           };
         }
-        await db.collection('users').updateOne({ _id }, updateDoc);
+  await db.collection(COLLECTIONS.USERS).updateOne({ _id }, updateDoc);
 
         // Also store full conversation in a separate collection
         if (onboardingHistory && Array.isArray(onboardingHistory)) {
-          await db.collection('onboarding_conversations').updateOne(
+          await db.collection(COLLECTIONS.ONBOARDING_CONVERSATIONS).updateOne(
             { userId },
             { $set: { history: onboardingHistory, lastUpdated: new Date(), isComplete: true } },
             { upsert: true }

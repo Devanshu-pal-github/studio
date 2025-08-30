@@ -5,8 +5,8 @@ import { ObjectId } from 'mongodb';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+import { getJWTSecret } from '@/lib/config';
+const JWT_SECRET = getJWTSecret();
 
 // Initialize Gemini AI
 let genAI: GoogleGenerativeAI | null = null;
@@ -465,7 +465,7 @@ async function storeConversationWithEmbeddings(userId: string, history: Message[
     const embedding = createEmbedding(conversationText);
     
     // Store the conversation with embeddings
-    await db.collection('onboarding_conversations').insertOne({
+  await db.collection(COLLECTIONS.ONBOARDING_CONVERSATIONS).insertOne({
       userId: new ObjectId(userId),
       conversation: [...history, { role: 'assistant', content: response }],
       userProfile,
@@ -495,7 +495,7 @@ async function storeConversationWithEmbeddings(userId: string, history: Message[
 // Enhanced onboarding with pure AI and vector embeddings
 export async function POST(req: NextRequest) {
   try {
-    const { history, userId } = await req.json();
+  const { history, userId, sessionId: incomingSessionId } = await req.json();
 
     // Require Bearer token and ensure it matches provided userId
     const authHeader = req.headers.get('authorization');
@@ -541,7 +541,33 @@ export async function POST(req: NextRequest) {
     const nextQuestion = await determineNextQuestion(history, userProfile);
     
     // Store conversation with embeddings
-  await storeConversationWithEmbeddings(userId, history, nextQuestion, userProfile);
+    await storeConversationWithEmbeddings(userId, history, nextQuestion, userProfile);
+
+    // Persist each Q/A turn into onboardingHistory for analytics and recovery
+    try {
+      const db = await connectToDatabase();
+      const sessionId = incomingSessionId || `obh-${userId}-${new Date().toISOString().slice(0,10)}`;
+      const baseDoc = {
+        userId,
+        sessionId,
+        stage: userProfile.currentStage || 'introduction',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as const;
+
+      const items: any[] = [];
+      let idx = 0;
+      for (const m of history) {
+        items.push({ ...baseDoc, index: idx++, role: m.role, content: m.content });
+      }
+      // Append assistant next question turn as well
+      items.push({ ...baseDoc, index: idx, role: 'assistant', content: nextQuestion });
+      if (items.length > 0) {
+        await db.collection(COLLECTIONS.ONBOARDING_HISTORY).insertMany(items);
+      }
+    } catch (e) {
+      console.warn('Could not persist onboardingHistory:', (e as any)?.message || e);
+    }
 
     // Log activity: onboarding interaction
     try {
@@ -563,8 +589,13 @@ export async function POST(req: NextRequest) {
     // If the currentStage is completion and enough user data is present, append a DONE marker
     const isComplete = (userProfile.currentStage === 'completion');
 
+    // Nudge for richer answers when user responses are short
+    const lastUser = [...history].reverse().find(m => m.role === 'user');
+    const wordCount = (lastUser?.content || '').trim().split(/\s+/).filter(Boolean).length;
+    const nudge = wordCount < 5 ? "\n\nTip: Add a bit more detail (1-2 sentences) so I can tailor this better." : '';
+
     return NextResponse.json({ 
-      message: isComplete ? `${nextQuestion}\n\n[DONE]` : nextQuestion,
+      message: isComplete ? `${nextQuestion}${nudge}\n\n[DONE]` : `${nextQuestion}${nudge}`,
       userProfile,
       currentStage: userProfile.currentStage,
       completedStages: userProfile.completedStages || [],

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+import { getJWTSecret } from '@/lib/config';
+const JWT_SECRET = getJWTSecret();
 
 export async function POST(request: NextRequest) {
   try {

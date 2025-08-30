@@ -242,43 +242,61 @@ export const COLLECTIONS = {
   USER_FEEDBACK: 'userFeedback',
   AI_RECOMMENDATIONS: 'aiRecommendations',
   CHAT_HISTORY: 'chatHistory',
+  CHAT_CONVERSATIONS: 'chat_conversations',
   LEARNING_RESOURCES: 'learningResources',
   VECTOR_DOCUMENTS: 'vectorDocuments',
-  ONBOARDING_HISTORY: 'onboardingHistory'
+  ONBOARDING_HISTORY: 'onboardingHistory',
+  ONBOARDING_CONVERSATIONS: 'onboarding_conversations',
+  USER_PROJECTS: 'user_projects',
+  USER_CONTEXT_VECTORS: 'user_context_vectors',
+  USER_AGGREGATED_CONTEXT: 'user_aggregated_context',
+  TOKEN_BLACKLIST: 'token_blacklist'
 } as const;
 
 // Database indexes to create for optimal performance
 export const DATABASE_INDEXES = {
   // Use [spec, options] tuples where options are required
   [COLLECTIONS.USERS]: [
-    [{ email: 1 }, { unique: true }],
-    [{ resetPasswordToken: 1 }, {}],
-    [{ createdAt: -1 }, {}]
+    [{ email: 1 }, { name: 'email_unique', unique: true }],
+    [{ resetPasswordToken: 1 }, { name: 'reset_token_idx' }],
+    [{ createdAt: -1 }, { name: 'createdAt_desc' }]
   ],
   [COLLECTIONS.USER_PROGRESS]: [
-    [{ userId: 1 }, { unique: true }],
-    [{ totalPoints: -1 }, {}],
-    [{ level: -1 }, {}]
+    [{ userId: 1 }, { name: 'user_progress_unique', unique: true }],
+    [{ totalPoints: -1 }, { name: 'totalPoints_desc' }],
+    [{ level: -1 }, { name: 'level_desc' }]
   ],
   [COLLECTIONS.USER_ACTIVITIES]: [
-    [{ userId: 1, timestamp: -1 }, {}],
-    [{ type: 1 }, {}],
-    [{ 'metadata.projectId': 1 }, {}]
+    [{ userId: 1, timestamp: -1 }, { name: 'user_timestamp_desc' }],
+    [{ type: 1 }, { name: 'type_idx' }],
+    [{ 'metadata.projectId': 1 }, { name: 'metadata_project_idx' }]
   ],
   [COLLECTIONS.PROJECT_PROGRESS]: [
-    [{ userId: 1 }, {}],
-    [{ projectId: 1 }, {}],
-    [{ status: 1 }, {}],
-    [{ startedAt: -1 }, {}]
+    [{ userId: 1 }, { name: 'pp_user_idx' }],
+    [{ projectId: 1 }, { name: 'pp_project_idx' }],
+    [{ status: 1 }, { name: 'pp_status_idx' }],
+    [{ startedAt: -1 }, { name: 'pp_startedAt_desc' }]
   ],
   [COLLECTIONS.CHAT_HISTORY]: [
-    [{ userId: 1, createdAt: -1 }, {}],
-    [{ sessionId: 1 }, {}]
+    [{ userId: 1, createdAt: -1 }, { name: 'chat_user_created_desc' }],
+    [{ sessionId: 1 }, { name: 'chat_session_idx' }]
+  ],
+  [COLLECTIONS.CHAT_CONVERSATIONS]: [
+    [{ userId: 1, timestamp: -1 }, { name: 'chatconv_user_timestamp_desc' }]
   ],
   [COLLECTIONS.AI_RECOMMENDATIONS]: [
-    [{ userId: 1, status: 1 }, {}],
-    [{ type: 1 }, {}],
-    [{ priority: -1 }, {}]
+    [{ userId: 1, status: 1 }, { name: 'ai_user_status_idx' }],
+    [{ type: 1 }, { name: 'ai_type_idx' }],
+    [{ priority: -1 }, { name: 'ai_priority_desc' }]
+  ],
+  [COLLECTIONS.ONBOARDING_HISTORY]: [
+    [{ userId: 1, createdAt: -1 }, { name: 'obh_user_created_desc' }],
+    [{ sessionId: 1, index: 1 }, { name: 'obh_session_index' }],
+    [{ stage: 1 }, { name: 'obh_stage_idx' }]
+  ],
+  [COLLECTIONS.ONBOARDING_CONVERSATIONS]: [
+    [{ userId: 1, createdAt: -1 }, { name: 'obc_user_created_desc' }],
+    [{ 'userProfile.currentStage': 1 }, { name: 'obc_stage_idx' }]
   ]
 } as const;
 

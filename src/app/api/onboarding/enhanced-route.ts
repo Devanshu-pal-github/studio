@@ -192,7 +192,8 @@ Let's start building something amazing together! 🚀
  */
 async function storeVectorEmbeddings(userId: string, history: Message[]): Promise<void> {
   try {
-    const db = await connectToDatabase();
+  const db = await connectToDatabase();
+  const { COLLECTIONS } = await import('@/lib/database/schemas');
         const userMessages = history.filter(msg => msg.role === 'user');
     
     for (let i = 0; i < userMessages.length; i++) {
@@ -209,7 +210,7 @@ async function storeVectorEmbeddings(userId: string, history: Message[]): Promis
       });
 
       // Store in database
-      await db.collection('user_embeddings').insertOne({
+  await db.collection(COLLECTIONS.USER_EMBEDDINGS ?? 'user_embeddings').insertOne({
         userId,
         content: message.content,
         embedding: embedding.metadata.embedding,
@@ -227,8 +228,9 @@ async function storeVectorEmbeddings(userId: string, history: Message[]): Promis
  */
 async function storeRecommendations(userId: string, recommendations: any): Promise<void> {
     try {
-        const db = await connectToDatabase();
-    await db.collection('user_recommendations').updateOne(
+    const db = await connectToDatabase();
+    const { COLLECTIONS } = await import('@/lib/database/schemas');
+  await db.collection(COLLECTIONS.USER_RECOMMENDATIONS ?? 'user_recommendations').updateOne(
       { userId },
             {
                 $set: {

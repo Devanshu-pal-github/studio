@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const { history } = await request.json();
+  const { history } = await request.json();
     
     // Count user messages to determine which question to ask next
     const userMessages = history.filter((msg: any) => msg.role === 'user').length;
@@ -44,8 +44,12 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    // Return next question
-  const nextQuestion = ONBOARDING_QUESTIONS[userMessages] || ONBOARDING_QUESTIONS[ONBOARDING_QUESTIONS.length - 1];
+  // Return next question with gentle guidance if answer too short
+  const nextBase = ONBOARDING_QUESTIONS[userMessages] || ONBOARDING_QUESTIONS[ONBOARDING_QUESTIONS.length - 1];
+  const lastUser = [...history].reverse().find((m: any) => m.role === 'user');
+  const wc = (lastUser?.content || '').trim().split(/\s+/).filter(Boolean).length;
+  const hint = wc < 5 ? '\n\nTip: Add 1-2 sentences so I can tailor this better.' : '';
+  const nextQuestion = `${nextBase}${hint}`;
     
     return NextResponse.json({
       response: nextQuestion,

@@ -1,5 +1,6 @@
 // lib/activityTracker.ts - User activity and progress tracking
 import { connectToDatabase } from './mongodb';
+import { COLLECTIONS } from './database/schemas';
 
 export interface UserActivity {
   id: string;
@@ -50,7 +51,7 @@ export class ActivityTracker {
     try {
       // Save activity to MongoDB
       const { db } = await connectToDatabase();
-      await db.collection('activities').insertOne(activityData);
+  await db.collection(COLLECTIONS.USER_ACTIVITIES).insertOne(activityData);
 
       // Update user progress
       await this.updateUserProgress(user, activityData);
@@ -72,7 +73,7 @@ export class ActivityTracker {
     const userId = user._id;
 
     try {
-      const existingProgress = await db.collection('userProgress').findOne({ userId });
+  const existingProgress = await db.collection(COLLECTIONS.USER_PROGRESS).findOne({ userId });
 
       let currentProgress: Partial<UserProgress>;
       if (existingProgress) {
@@ -159,7 +160,7 @@ export class ActivityTracker {
       );
     }
 
-    await db.collection('userProgress').updateOne(
+  await db.collection(COLLECTIONS.USER_PROGRESS).updateOne(
       { userId },
       { $set: updatedProgress },
       { upsert: true }
@@ -205,7 +206,7 @@ export class ActivityTracker {
     const { db } = await connectToDatabase();
     
     try {
-      const progress = await db.collection('userProgress').findOne({ userId: user._id });
+  const progress = await db.collection(COLLECTIONS.USER_PROGRESS).findOne({ userId: user._id });
       return (progress as unknown) as UserProgress || null;
     } catch (error) {
       console.error('Error getting user progress:', error);
@@ -220,7 +221,7 @@ export class ActivityTracker {
     
     try {
       const activities = await db
-        .collection('activities')
+  .collection(COLLECTIONS.USER_ACTIVITIES)
         .find({ userId: user._id })
         .sort({ timestamp: -1 })
         .limit(limitCount)

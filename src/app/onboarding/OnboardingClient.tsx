@@ -26,6 +26,7 @@ export default function OnboardingClient() {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const [sessionId] = useState(() => `obh-${Math.random().toString(36).slice(2)}-${Date.now()}`);
 
   const MAX_QUESTIONS = 10;
 
@@ -103,7 +104,7 @@ export default function OnboardingClient() {
     try {
       const isMongoId = /^[a-f0-9]{24}$/i.test(String(user?._id || ''));
       const endpoint = isMongoId ? '/api/onboarding/enhanced' : '/api/onboarding/chat-simple';
-      const body = isMongoId ? { history: [], userId: user?._id } : { history: [] } as any;
+  const body = isMongoId ? { history: [], userId: user?._id, sessionId } : { history: [], sessionId } as any;
 
     const token = localStorage.getItem('token') || '';
     const call = async () => fetch(endpoint, {
@@ -133,9 +134,13 @@ export default function OnboardingClient() {
       // Fallback welcome message
       setMessages([{ 
         role: 'assistant', 
-        content: `👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.
+  content: `👋 Welcome to your personalized learning journey! I'm your AI mentor, and I'm excited to help you succeed.
 
-To create the perfect learning path for you, let's start simple: **What's your name, and what made you decide to start learning today?**` 
+To create the perfect learning path for you, let's start simple:
+1) What's your name?
+2) What made you decide to start learning today?
+
+Tip: Please answer in 1-2 sentences so I can tailor this better.` 
       }]);
     } finally {
       setIsLoading(false);
@@ -173,7 +178,7 @@ To create the perfect learning path for you, let's start simple: **What's your n
 
       const isMongoId = /^[a-f0-9]{24}$/i.test(String(user?._id || ''));
       const endpoint = isMongoId ? '/api/onboarding/enhanced' : '/api/onboarding/chat-simple';
-      const body = isMongoId ? { history: newMessages, userId: user?._id } : { history: newMessages } as any;
+  const body = isMongoId ? { history: newMessages, userId: user?._id, sessionId } : { history: newMessages, sessionId } as any;
 
     const token2 = localStorage.getItem('token') || '';
     const response = await fetch(endpoint, {
@@ -220,7 +225,7 @@ To create the perfect learning path for you, let's start simple: **What's your n
         console.error('Fallback simple flow also failed:', e);
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: "I apologize, but I'm having trouble processing your response right now. Could you please try again?" 
+          content: "I’m having trouble processing that right now. Please try again with 1-2 sentences so I can give you better guidance." 
         }]);
       }
     } finally {

@@ -4,6 +4,7 @@
  */
 
 import { connectToDatabase } from './mongodb';
+import { COLLECTIONS } from './database/schemas';
 
 export interface UserContextVector {
   id: string;
@@ -58,7 +59,7 @@ export class EnhancedVectorStore {
       }
 
       // Store in vector collection
-      await db.collection('user_context_vectors').insertOne(contextDocument);
+  await db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).insertOne(contextDocument);
       
       // Also update user's aggregated context
       await this.updateUserAggregatedContext(userId, 'onboarding', {
@@ -103,7 +104,7 @@ export class EnhancedVectorStore {
         contextDocument.embedding = await this.generateEmbedding(contextDocument.content);
       }
 
-      await db.collection('user_context_vectors').insertOne(contextDocument);
+  await db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).insertOne(contextDocument);
       
       // Update aggregated context
       await this.updateUserAggregatedContext(userId, 'activity', {
@@ -147,7 +148,7 @@ export class EnhancedVectorStore {
         contextDocument.embedding = await this.generateEmbedding(contextDocument.content);
       }
 
-      await db.collection('user_context_vectors').insertOne(contextDocument);
+  await db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).insertOne(contextDocument);
 
     } catch (error) {
       console.error('Error storing project context:', error);
@@ -183,7 +184,7 @@ export class EnhancedVectorStore {
         contextDocument.embedding = await this.generateEmbedding(contextDocument.content);
       }
 
-      await db.collection('user_context_vectors').insertOne(contextDocument);
+  await db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).insertOne(contextDocument);
 
     } catch (error) {
       console.error('Error storing chat context:', error);
@@ -202,7 +203,7 @@ export class EnhancedVectorStore {
         const queryEmbedding = await this.generateEmbedding(query);
         
         // MongoDB vector search (if supported) or similarity calculation
-        const results = await db.collection('user_context_vectors')
+  const results = await db.collection(COLLECTIONS.USER_CONTEXT_VECTORS)
           .find({ 
             userId,
             embedding: { $exists: true }
@@ -223,7 +224,7 @@ export class EnhancedVectorStore {
         const keywords = this.extractKeywords(query);
         const keywordRegex = new RegExp(keywords.join('|'), 'i');
         
-        const results = await db.collection('user_context_vectors')
+  const results = await db.collection(COLLECTIONS.USER_CONTEXT_VECTORS)
           .find({
             userId,
             $or: [
@@ -251,19 +252,19 @@ export class EnhancedVectorStore {
       const db = await connectToDatabase();
       
       const [onboardingContext, activityContext, projectContext, chatContext] = await Promise.all([
-        db.collection('user_context_vectors').find({ 
+  db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).find({ 
           userId, 
           'metadata.type': 'onboarding_response' 
         }).toArray(),
-        db.collection('user_context_vectors').find({ 
+  db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).find({ 
           userId, 
           'metadata.type': 'activity' 
         }).sort({ 'metadata.timestamp': -1 }).limit(20).toArray(),
-        db.collection('user_context_vectors').find({ 
+  db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).find({ 
           userId, 
           'metadata.type': 'project_interaction' 
         }).sort({ 'metadata.timestamp': -1 }).limit(10).toArray(),
-        db.collection('user_context_vectors').find({ 
+  db.collection(COLLECTIONS.USER_CONTEXT_VECTORS).find({ 
           userId, 
           'metadata.type': 'chat_message' 
         }).sort({ 'metadata.timestamp': -1 }).limit(5).toArray()
@@ -497,7 +498,7 @@ export class EnhancedVectorStore {
     try {
       const db = await connectToDatabase();
       
-      await db.collection('user_aggregated_context').updateOne(
+  await db.collection(COLLECTIONS.USER_AGGREGATED_CONTEXT).updateOne(
         { userId },
         { 
           $push: { [`${type}_history`]: data },

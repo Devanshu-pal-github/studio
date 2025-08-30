@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/database/schemas';
 import jwt from 'jsonwebtoken';
+import { getJWTSecret } from '@/lib/config';
 import { ObjectId } from 'mongodb';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+const JWT_SECRET = getJWTSecret();
 
 export async function POST(request: NextRequest) {
   try {

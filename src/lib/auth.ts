@@ -2,8 +2,10 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { getDatabase } from './mongodb';
+import { getJWTSecret } from './config';
+import { COLLECTIONS } from './database/schemas';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_secret_key_change_this_in_production_12345';
+const JWT_SECRET = getJWTSecret();
 
 export interface User {
   _id?: string;
@@ -28,7 +30,7 @@ export interface AuthToken {
 export class AuthService {
   private async getUsersCollection() {
     const db = await getDatabase();
-    return db.collection('users');
+  return db.collection(COLLECTIONS.USERS);
   }
 
   async signup(email: string, password: string, name: string): Promise<{ user: User; token: string }> {

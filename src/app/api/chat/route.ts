@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Store conversation in database
-    await db.collection('chat_conversations').insertOne({
+  await db.collection(COLLECTIONS.CHAT_CONVERSATIONS).insertOne({
       userId: new ObjectId(userId),
       message,
       response: aiResponse.response,
